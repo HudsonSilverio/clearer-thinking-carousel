@@ -21,3 +21,6 @@ assets/brand/*
 # OS
 .DS_Store
 Thumbs.db
+
+# Generated carousel output
+generated_carousels/

@@ -1,11 +1,16 @@
+from pathlib import Path
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
 from dotenv import load_dotenv
-from app.api.routes import blog
+from app.api.routes import blog, carousel
 
 load_dotenv()
 
-app = FastAPI(title="Clearer Thinking Carousel API", version="1.0.0")
+GENERATED_DIR = Path(__file__).resolve().parents[3] / "generated_carousels"
+GENERATED_DIR.mkdir(exist_ok=True)
+
+app = FastAPI(title="Clearer Thinking Carousel API", version="2.0.0")
 
 app.add_middleware(
     CORSMiddleware,
@@ -16,6 +21,13 @@ app.add_middleware(
 )
 
 app.include_router(blog.router, prefix="/api")
+app.include_router(carousel.router, prefix="/api")
+
+app.mount(
+    "/generated_carousels",
+    StaticFiles(directory=str(GENERATED_DIR)),
+    name="generated_carousels",
+)
 
 
 @app.get("/health")
