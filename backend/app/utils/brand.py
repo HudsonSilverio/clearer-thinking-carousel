@@ -1,33 +1,44 @@
 """
-Clearer Thinking brand tokens extracted from clearerthinking.org.
+Clearer Thinking brand tokens.
 Single source of truth for all image-generation and API responses.
 """
+
+# ---------------------------------------------------------------------------
+# Top-level constants (checked by tests and other services)
+# ---------------------------------------------------------------------------
+
+BRAND_PRIMARY  = "#E8712A"   # orange — CTAs, highlights, accent lines
+BRAND_ACCENT   = "#2B5EA7"   # blue  — links, secondary actions
+BRAND_DARK_BG  = "#1A1A2E"   # dark navy — dark-mode slides, footers
+
+SLIDE_WIDTH    = 1080
+SLIDE_HEIGHT   = 1080
+
+IG_HANDLE      = "@clearerthinking"
 
 # ---------------------------------------------------------------------------
 # Colors
 # ---------------------------------------------------------------------------
 
 class Colors:
+    # Brand
+    PRIMARY       = BRAND_PRIMARY
+    ACCENT        = BRAND_ACCENT
+    DARK_BG       = BRAND_DARK_BG
+
     # Text
-    HEADING       = "#303030"   # rgb(48,48,48)  — h1/h2/h3
-    BODY          = "#737373"   # rgb(115,115,115) — article paragraphs
-    SUBTLE        = "#646464"   # rgb(100,100,100) — secondary text
-    NAV           = "#333333"   # rgb(51,51,51)   — nav / header text
+    HEADING       = "#303030"
+    BODY          = "#737373"
+    SUBTLE        = "#646464"
+    WHITE         = "#FFFFFF"
 
     # Backgrounds
-    WHITE         = "#FFFFFF"
-    OFF_WHITE     = "#F7F7F7"   # secondary page background
-    CREAM         = "#EBE5D6"   # warm accent background
-    DARK          = "#303030"   # dark card / inverted slide
-
-    # Brand accent
-    BLUE          = "#0885F8"   # rgb(8,133,248)  — primary CTA / highlight
-    BLUE_LINK     = "#337AB7"   # rgb(51,122,183) — inline links
-    CYAN          = "#00A6ED"   # rgb(0,166,237)  — secondary accent
+    OFF_WHITE     = "#F7F7F7"
+    CREAM         = "#EBE5D6"
 
     # Utility
     BORDER        = "#E0E0E0"
-    DISABLED      = "#C7C7C7"   # rgb(199,199,199)
+    DISABLED      = "#C7C7C7"
 
 
 # ---------------------------------------------------------------------------
@@ -35,18 +46,17 @@ class Colors:
 # ---------------------------------------------------------------------------
 
 class Fonts:
-    # Web-font names as served by Wix (for reference / CSS use)
-    HEADING_WEB   = "avenir-lt-w01_85-heavy1475544, sans-serif"
-    BODY_WEB      = "roboto-bold, roboto, sans-serif"
+    # Carousel brand fonts (TTF files in assets/fonts/)
+    HEADING_FILE   = "assets/fonts/PlusJakartaSans-ExtraBold.ttf"   # Plus Jakarta Sans
+    BODY_FILE      = "assets/fonts/DMSans-Regular.ttf"               # DM Sans
+    BODY_BOLD_FILE = "assets/fonts/DMSans-Bold.ttf"
 
-    # Google Fonts equivalents used for Pillow image rendering
-    # (download to assets/fonts/ via setup script)
-    HEADING_FILE  = "assets/fonts/Nunito-ExtraBold.ttf"   # closest Avenir Heavy match
-    BODY_FILE     = "assets/fonts/Roboto-Regular.ttf"
-    BODY_BOLD_FILE= "assets/fonts/Roboto-Bold.ttf"
+    # CSS / web names
+    HEADING_WEB    = "Plus Jakarta Sans, sans-serif"
+    BODY_WEB       = "DM Sans, sans-serif"
 
     # System fallback when font files are missing
-    FALLBACK      = "arial.ttf"
+    FALLBACK       = "arial.ttf"
 
 
 class FontSizes:

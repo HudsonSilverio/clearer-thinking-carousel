@@ -18,8 +18,15 @@ class ScrapeResponse(BaseModel):
 
 @router.post("/scrape", response_model=ScrapeResponse)
 async def scrape_blog_post(body: ScrapeRequest):
+    url = str(body.url)
+    if "clearerthinking.org/post/" not in url:
+        raise HTTPException(
+            status_code=400,
+            detail="URL must be a Clearer Thinking blog post (clearerthinking.org/post/...)",
+        )
+
     try:
-        result = await scrape_post(str(body.url))
+        result = await scrape_post(url)
     except Exception as e:
         raise HTTPException(status_code=422, detail=f"Failed to scrape URL: {e}")
 

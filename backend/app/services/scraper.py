@@ -75,26 +75,34 @@ async def _extract_takeaways(page) -> list[str]:
     body_text = await page.inner_text("body")
     lines = [l.strip() for l in body_text.splitlines() if l.strip()]
 
+    # Strategy 1: look for explicit "key takeaways" marker
     takeaway_start = None
     for i, line in enumerate(lines):
         if "key takeaway" in line.lower():
             takeaway_start = i + 1
             break
 
+    # Strategy 2: scan for first run of 3+ consecutive emoji-prefixed lines
+    # (some posts omit the marker and place takeaways directly after metadata)
+    if takeaway_start is None:
+        for i, line in enumerate(lines):
+            if _EMOJI_RE.match(line):
+                run = sum(1 for l in lines[i:i + 5] if _EMOJI_RE.match(l))
+                if run >= 3:
+                    takeaway_start = i
+                    break
+
     if takeaway_start is None:
         return []
 
     takeaways = []
     for line in lines[takeaway_start:]:
-        # Takeaway lines begin with an emoji; stop when we hit plain prose
         if _EMOJI_RE.match(line):
             cleaned = strip_emojis(line).strip(" .")
-            # Keep only the first sentence (up to the first period)
             first_sentence = cleaned.split(".")[0].strip()
             if first_sentence:
                 takeaways.append(first_sentence)
         elif takeaways:
-            # First non-emoji line after takeaways signals end of section
             break
 
     return takeaways
