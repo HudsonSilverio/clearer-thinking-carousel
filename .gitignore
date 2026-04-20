@@ -1,0 +1,23 @@
+# Python
+backend/venv/
+__pycache__/
+*.pyc
+*.pyo
+.pytest_cache/
+
+# Environment — never commit real secrets
+backend/.env
+dashboard/.env.local
+
+# Next.js
+dashboard/.next/
+dashboard/node_modules/
+dashboard/out/
+
+# Assets / generated output
+assets/brand/*
+!assets/brand/.gitkeep
+
+# OS
+.DS_Store
+Thumbs.db
