@@ -28,17 +28,9 @@ def _strip(text: str) -> str:
     return _EMOJI_RE.sub("", text).strip()
 
 
-def _fallback(title: str, takeaways: list[str]) -> dict:
-    headlines = []
-    for t in takeaways:
-        words = t.split()
-        headlines.append(" ".join(words[:8]) if len(words) > 8 else t)
-
-    caption = f"{title[:150]}. Read more at clearerthinking.org"
+def _fallback(title: str) -> dict:
     return {
-        "hook": title[:60],
-        "slide_headlines": headlines,
-        "caption": caption[:200],
+        "caption": f"{title[:150]}. Read more at clearerthinking.org",
         "hashtags": [
             "#ClearerThinking", "#Rationality", "#DecisionMaking",
             "#CriticalThinking", "#Cognition", "#Psychology",
@@ -47,15 +39,23 @@ def _fallback(title: str, takeaways: list[str]) -> dict:
     }
 
 
-async def generate_content(title: str, takeaways: list[str]) -> dict:
+async def generate_content(title: str, takeaways: list[dict]) -> dict:
+    """Generate Instagram caption and hashtags for a blog post.
+
+    takeaways: list of {headline, body} dicts from the scraper.
+    """
     api_key = os.getenv("GEMINI_API_KEY", "")
     if not api_key or api_key == "your_gemini_api_key_here":
-        return _fallback(title, takeaways)
+        return _fallback(title)
 
     try:
         client = genai.Client(api_key=api_key)
 
-        takeaway_block = "\n".join(f"- {t}" for t in takeaways)
+        takeaway_block = "\n".join(
+            f"- {t['headline']} {t.get('body', '')}".strip()
+            for t in takeaways
+        )
+
         prompt = f"""You are a social-media copywriter for the Clearer Thinking blog (clearerthinking.org).
 Given this blog post, generate carousel content in JSON. No emojis anywhere.
 
@@ -66,41 +66,28 @@ Key takeaways:
 
 Return ONLY valid JSON (no markdown fences) with exactly these keys:
 {{
-  "hook": "<6-10 word compelling hook for the cover slide>",
-  "slide_headlines": ["<5-10 word headline for each takeaway, same count as takeaways>"],
-  "caption": "<Instagram caption, professional tone, under 200 characters>",
+  "caption": "<Instagram caption, professional tone, under 200 characters, no emojis>",
   "hashtags": ["#ClearerThinking", "<9 more relevant hashtags>"]
 }}"""
 
         response = client.models.generate_content(
-            model="gemini-1.5-flash",
+            model="gemini-2.5-flash",
             contents=prompt,
             config=types.GenerateContentConfig(temperature=0.7),
         )
         raw = response.text.strip()
-        # Strip markdown code fences if present
         raw = re.sub(r"^```[a-z]*\n?", "", raw).rstrip("`").strip()
         data = json.loads(raw)
 
-        # Sanitise every string field
-        data["hook"] = _strip(data.get("hook", ""))
-        data["slide_headlines"] = [_strip(h) for h in data.get("slide_headlines", [])]
         data["caption"] = _strip(data.get("caption", ""))[:200]
         data["hashtags"] = [_strip(h) for h in data.get("hashtags", [])]
 
-        # Guarantee #ClearerThinking is first
         tags = data["hashtags"]
         ct = "#ClearerThinking"
         tags = [t for t in tags if t.lower() != ct.lower()]
         data["hashtags"] = [ct] + tags[:9]
 
-        # Pad/trim headlines to match takeaway count
-        n = len(takeaways)
-        while len(data["slide_headlines"]) < n:
-            data["slide_headlines"].append(_fallback(title, takeaways)["slide_headlines"][len(data["slide_headlines"])])
-        data["slide_headlines"] = data["slide_headlines"][:n]
-
         return data
 
     except Exception:
-        return _fallback(title, takeaways)
+        return _fallback(title)

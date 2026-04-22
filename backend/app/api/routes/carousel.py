@@ -1,6 +1,8 @@
+import io
 import uuid
+import zipfile
 from fastapi import APIRouter, HTTPException
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, StreamingResponse
 from pydantic import BaseModel, HttpUrl
 
 from app.services.scraper import scrape_post
@@ -10,12 +12,30 @@ from app.services.image_renderer import render_slides
 
 router = APIRouter(prefix="/carousel", tags=["carousel"])
 
-# In-memory store: carousel_id -> metadata
 _store: dict[str, dict] = {}
 
 
 class GenerateRequest(BaseModel):
     url: HttpUrl
+
+
+class TakeawayItem(BaseModel):
+    headline: str
+    body: str
+
+
+class ColorsInput(BaseModel):
+    slide_bg: str = "#E8EDF4"
+    headline: str = "#555555"
+    body: str = "#6B6B6B"
+    progress_bar: str = "#E8A838"
+
+
+class RenderCustomRequest(BaseModel):
+    title: str
+    cover_image: str | None = None
+    takeaways: list[TakeawayItem]
+    colors: ColorsInput = ColorsInput()
 
 
 @router.post("/generate")
@@ -27,7 +47,6 @@ async def generate_carousel(body: GenerateRequest):
             detail="URL must be a Clearer Thinking blog post (clearerthinking.org/post/...)",
         )
 
-    # 1 — Scrape
     try:
         scraped = await scrape_post(url)
     except Exception as e:
@@ -40,28 +59,24 @@ async def generate_carousel(body: GenerateRequest):
     takeaways = scraped["takeaways"]
     cover_image = scraped["cover_image"]
 
-    # 2 — AI generation
     ai = await generate_content(title, takeaways)
 
-    # 3 — Build HTML slides
     slides = build_slides(
         title=title,
         cover_image=cover_image,
         takeaways=takeaways,
-        hook=ai["hook"],
-        slide_headlines=ai["slide_headlines"],
     )
 
-    # 4 — Render PNGs + PDF
     carousel_id = uuid.uuid4().hex
     rendered = await render_slides(slides, carousel_id)
 
-    # 5 — Store metadata
     metadata = {
         "carousel_id": carousel_id,
         "url": url,
         "title": title,
+        "cover_image": cover_image,
         "slide_count": rendered["slide_count"],
+        "takeaways": takeaways,
         "caption": ai["caption"],
         "hashtags": ai["hashtags"],
         "slide_images": rendered["png_paths"],
@@ -70,6 +85,70 @@ async def generate_carousel(body: GenerateRequest):
     _store[carousel_id] = metadata
 
     return metadata
+
+
+@router.post("/render-custom")
+async def render_custom(body: RenderCustomRequest):
+    """Re-render a carousel with edited content and custom colors."""
+    takeaways = [{"headline": t.headline, "body": t.body} for t in body.takeaways]
+    colors = {
+        "slide_bg": body.colors.slide_bg,
+        "headline": body.colors.headline,
+        "body": body.colors.body,
+        "progress_bar": body.colors.progress_bar,
+    }
+
+    slides = build_slides(
+        title=body.title,
+        cover_image=body.cover_image,
+        takeaways=takeaways,
+        colors=colors,
+    )
+
+    carousel_id = uuid.uuid4().hex
+    rendered = await render_slides(slides, carousel_id)
+
+    metadata = {
+        "carousel_id": carousel_id,
+        "slide_count": rendered["slide_count"],
+        "slide_images": rendered["png_paths"],
+        "pdf_path": rendered["pdf_path"],
+    }
+    _store[carousel_id] = {**metadata, "title": body.title, "cover_image": body.cover_image}
+
+    return metadata
+
+
+class RegenerateAIRequest(BaseModel):
+    title: str
+    takeaways: list[TakeawayItem]
+
+
+@router.post("/regenerate-ai")
+async def regenerate_ai(body: RegenerateAIRequest):
+    """Re-run only the AI step (caption + hashtags) with current title/takeaways."""
+    takeaways = [{"headline": t.headline, "body": t.body} for t in body.takeaways]
+    ai = await generate_content(body.title, takeaways)
+    return {"caption": ai["caption"], "hashtags": ai["hashtags"]}
+
+
+@router.get("/{carousel_id}/zip")
+async def get_zip(carousel_id: str):
+    meta = _store.get(carousel_id)
+    if not meta:
+        raise HTTPException(status_code=404, detail="Carousel not found.")
+
+    buf = io.BytesIO()
+    with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as zf:
+        for i, path in enumerate(meta["slide_images"]):
+            zf.write(path, f"slide_{i + 1:02d}.png")
+    buf.seek(0)
+
+    return StreamingResponse(
+        buf,
+        media_type="application/zip",
+        headers={"Content-Disposition": f"attachment; filename=carousel_{carousel_id}.zip"},
+    )
 
 
 @router.get("/{carousel_id}/slide/{slide_index}")
@@ -82,8 +161,7 @@ async def get_slide(carousel_id: str, slide_index: int):
     if slide_index < 0 or slide_index >= len(images):
         raise HTTPException(status_code=404, detail=f"Slide index {slide_index} out of range.")
 
-    path = images[slide_index]
-    return FileResponse(path, media_type="image/png")
+    return FileResponse(images[slide_index], media_type="image/png")
 
 
 @router.get("/{carousel_id}/pdf")
@@ -109,6 +187,7 @@ async def get_info(carousel_id: str):
         "carousel_id": carousel_id,
         "title": meta["title"],
         "slide_count": meta["slide_count"],
-        "caption": meta["caption"],
-        "hashtags": meta["hashtags"],
+        "caption": meta.get("caption", ""),
+        "hashtags": meta.get("hashtags", []),
+        "takeaways": meta.get("takeaways", []),
     }

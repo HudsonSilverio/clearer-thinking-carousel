@@ -28,6 +28,20 @@ body {{
 }}
 """
 
+_DEFAULT_COLORS = {
+    "slide_bg": SLIDE_BG,
+    "headline": TEXT_HEADLINE,
+    "body": TEXT_BODY,
+    "progress_bar": PROGRESS_BAR_COLOR,
+}
+
+
+def _resolve_colors(overrides: dict | None) -> dict:
+    c = dict(_DEFAULT_COLORS)
+    if overrides:
+        c.update({k: v for k, v in overrides.items() if v})
+    return c
+
 
 def _head(extra_css: str = "") -> str:
     return f"""<!DOCTYPE html>
@@ -47,7 +61,7 @@ def _esc(text: str) -> str:
     return html_mod.escape(str(text))
 
 
-def _progress_bar(index: int, total: int) -> str:
+def _progress_bar(index: int, total: int, color: str) -> str:
     pct = round((index + 1) / total * 100, 2)
     return f"""
     <div style="
@@ -55,13 +69,13 @@ def _progress_bar(index: int, total: int) -> str:
         bottom: 0; left: 0;
         width: {pct}%;
         height: 8px;
-        background: {PROGRESS_BAR_COLOR};
+        background: {color};
     "></div>"""
 
 
-def build_cover_slide(title: str, cover_image: str | None) -> str:
-    cover_top_h = round(SLIDE_HEIGHT * 0.65)   # 702px
-    cover_bot_h = SLIDE_HEIGHT - cover_top_h   # 378px
+def build_cover_slide(title: str, cover_image: str | None, colors: dict) -> str:
+    cover_top_h = round(SLIDE_HEIGHT * 0.65)
+    cover_bot_h = SLIDE_HEIGHT - cover_top_h
 
     if cover_image:
         img_section = f"""
@@ -80,8 +94,7 @@ def build_cover_slide(title: str, cover_image: str | None) -> str:
             flex-shrink: 0;
         "></div>"""
 
-    extra_css = ""
-    return f"""{_head(extra_css)}
+    return f"""{_head()}
 <div class="slide" style="display: flex; flex-direction: column; background: {COVER_BG};">
     {img_section}
     <div style="
@@ -99,7 +112,7 @@ def build_cover_slide(title: str, cover_image: str | None) -> str:
             font-family: 'Source Serif 4', serif;
             font-size: 40px;
             font-weight: 400;
-            color: {TEXT_HEADLINE};
+            color: {colors['headline']};
             text-align: center;
             line-height: 1.3;
             margin-bottom: 24px;
@@ -107,7 +120,7 @@ def build_cover_slide(title: str, cover_image: str | None) -> str:
         <div style="
             width: 40px;
             height: 4px;
-            background: {PROGRESS_BAR_COLOR};
+            background: {colors['progress_bar']};
             border-radius: 2px;
         "></div>
     </div>
@@ -115,19 +128,24 @@ def build_cover_slide(title: str, cover_image: str | None) -> str:
 </body></html>"""
 
 
-def build_content_slide(headline: str, body: str, index: int, total: int) -> str:
+def build_content_slide(
+    headline: str,
+    body: str,
+    index: int,
+    total: int,
+    colors: dict,
+) -> str:
     pad = 65
     return f"""{_head()}
-<div class="slide" style="background: {SLIDE_BG};">
+<div class="slide" style="background: {colors['slide_bg']};">
     <div style="
-        padding: {pad}px {pad}px 0 {pad}px;
-        padding-top: 120px;
+        padding: 120px {pad}px 0 {pad}px;
     ">
         <div style="
             font-family: 'Source Serif 4', serif;
             font-size: 38px;
             font-weight: 500;
-            color: {TEXT_HEADLINE};
+            color: {colors['headline']};
             line-height: 1.3;
             margin-bottom: 40px;
         ">{_esc(headline)}</div>
@@ -135,18 +153,18 @@ def build_content_slide(headline: str, body: str, index: int, total: int) -> str
             font-family: 'Plus Jakarta Sans', sans-serif;
             font-size: 23px;
             font-weight: 400;
-            color: {TEXT_BODY};
+            color: {colors['body']};
             line-height: 1.65;
         ">{_esc(body)}</div>
     </div>
-    {_progress_bar(index, total)}
+    {_progress_bar(index, total, colors['progress_bar'])}
 </div>
 </body></html>"""
 
 
-def build_cta_slide(index: int, total: int) -> str:
+def build_cta_slide(index: int, total: int, colors: dict) -> str:
     return f"""{_head()}
-<div class="slide" style="background: {SLIDE_BG}; display: flex; flex-direction: column; align-items: center; justify-content: center;">
+<div class="slide" style="background: {colors['slide_bg']}; display: flex; flex-direction: column; align-items: center; justify-content: center;">
     <div style="
         display: flex;
         flex-direction: column;
@@ -159,7 +177,7 @@ def build_cta_slide(index: int, total: int) -> str:
             font-family: 'Source Serif 4', serif;
             font-size: 32px;
             font-weight: 400;
-            color: {TEXT_HEADLINE};
+            color: {colors['headline']};
             line-height: 1.4;
             max-width: 700px;
         ">Read the full article (or listen to it) on our website</div>
@@ -172,7 +190,6 @@ def build_cta_slide(index: int, total: int) -> str:
                 border-left: 24px solid {ACCENT_BLUE};
                 opacity: 0.7;
             "></div>
-
             <div style="
                 background: #FFFFFF;
                 border-radius: 20px;
@@ -188,10 +205,9 @@ def build_cta_slide(index: int, total: int) -> str:
                     font-family: 'Plus Jakarta Sans', sans-serif;
                     font-size: 22px;
                     font-weight: 600;
-                    color: {TEXT_HEADLINE};
+                    color: {colors['headline']};
                 ">ClearerThinking.org</div>
             </div>
-
             <div style="
                 width: 0; height: 0;
                 border-top: 16px solid transparent;
@@ -205,12 +221,12 @@ def build_cta_slide(index: int, total: int) -> str:
             font-family: 'Plus Jakarta Sans', sans-serif;
             font-size: 20px;
             font-weight: 400;
-            color: {TEXT_BODY};
+            color: {colors['body']};
             font-style: italic;
         ">www.clearerthinking.org/blog</div>
     </div>
 
-    {_progress_bar(index, total)}
+    {_progress_bar(index, total, colors['progress_bar'])}
 </div>
 </body></html>"""
 
@@ -218,31 +234,42 @@ def build_cta_slide(index: int, total: int) -> str:
 def build_slides(
     title: str,
     cover_image: str | None,
-    takeaways: list[str],
-    hook: str,
-    slide_headlines: list[str],
+    takeaways: list[dict],
+    colors: dict | None = None,
 ) -> list[dict]:
-    total = len(takeaways) + 2  # cover + content slides + CTA
+    """Build HTML for all slides.
 
-    slides = []
+    takeaways: list of {headline, body} dicts.
+    colors: optional overrides for slide_bg, headline, body, progress_bar.
+    """
+    c = _resolve_colors(colors)
+    total = len(takeaways) + 2
 
-    slides.append({
-        "type": "cover",
-        "index": 0,
-        "html": build_cover_slide(title, cover_image),
-    })
+    slides = [
+        {
+            "type": "cover",
+            "index": 0,
+            "html": build_cover_slide(title, cover_image, c),
+        }
+    ]
 
-    for i, (takeaway, headline) in enumerate(zip(takeaways, slide_headlines)):
+    for i, takeaway in enumerate(takeaways):
         slides.append({
             "type": "content",
             "index": i + 1,
-            "html": build_content_slide(headline, takeaway, i + 1, total),
+            "html": build_content_slide(
+                takeaway["headline"],
+                takeaway.get("body", ""),
+                i + 1,
+                total,
+                c,
+            ),
         })
 
     slides.append({
         "type": "cta",
         "index": total - 1,
-        "html": build_cta_slide(total - 1, total),
+        "html": build_cta_slide(total - 1, total, c),
     })
 
     return slides

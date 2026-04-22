@@ -9,11 +9,17 @@ class ScrapeRequest(BaseModel):
     url: HttpUrl
 
 
+class TakeawayItem(BaseModel):
+    headline: str
+    body: str
+
+
 class ScrapeResponse(BaseModel):
     url: str
     title: str
     cover_image: str | None
-    takeaways: list[str]
+    takeaways: list[TakeawayItem]
+    takeaway_count: int
 
 
 @router.post("/scrape", response_model=ScrapeResponse)
@@ -31,6 +37,9 @@ async def scrape_blog_post(body: ScrapeRequest):
         raise HTTPException(status_code=422, detail=f"Failed to scrape URL: {e}")
 
     if not result["title"]:
-        raise HTTPException(status_code=422, detail="Could not extract post content — is this a valid Clearer Thinking post URL?")
+        raise HTTPException(
+            status_code=422,
+            detail="Could not extract post content — is this a valid Clearer Thinking post URL?",
+        )
 
     return result

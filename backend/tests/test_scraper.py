@@ -26,10 +26,19 @@ async def test_scrape_returns_takeaways():
 
 
 @pytest.mark.asyncio
+async def test_takeaways_have_headline_and_body_fields():
+    result = await scrape_post(TEST_URL)
+    for t in result["takeaways"]:
+        assert "headline" in t and "body" in t, f"Takeaway missing headline/body: {t!r}"
+        assert t["headline"], "headline must be non-empty"
+
+
+@pytest.mark.asyncio
 async def test_takeaways_have_no_emojis():
     result = await scrape_post(TEST_URL)
     for t in result["takeaways"]:
-        assert t == strip_emojis(t), f"Emoji found in: {t!r}"
+        assert t["headline"] == strip_emojis(t["headline"]), f"Emoji in headline: {t['headline']!r}"
+        assert t["body"] == strip_emojis(t["body"]), f"Emoji in body: {t['body']!r}"
 
 
 @pytest.mark.asyncio

@@ -31,35 +31,22 @@ async def test_ai_generator():
 
     ai = await generate_content(title, takeaways)
 
-    assert ai.get("hook"), "hook is missing or empty"
-    assert ai.get("slide_headlines"), "slide_headlines is missing"
-    assert len(ai["slide_headlines"]) == len(takeaways), (
-        f"Expected {len(takeaways)} headlines, got {len(ai['slide_headlines'])}"
-    )
     assert ai.get("caption"), "caption is missing"
     assert ai.get("hashtags"), "hashtags is missing"
     assert ai["hashtags"][0] == "#ClearerThinking", (
         f"First hashtag must be #ClearerThinking, got {ai['hashtags'][0]}"
     )
-
-    # No emojis in any field
-    assert not _has_emoji(ai["hook"]), f"Emoji in hook: {ai['hook']!r}"
-    for h in ai["slide_headlines"]:
-        assert not _has_emoji(h), f"Emoji in headline: {h!r}"
     assert not _has_emoji(ai["caption"]), f"Emoji in caption: {ai['caption']!r}"
 
 
 @pytest.mark.asyncio
 async def test_carousel_builder():
     scraped = await scrape_post(TEST_URL)
-    ai = await generate_content(scraped["title"], scraped["takeaways"])
 
     slides = build_slides(
         title=scraped["title"],
         cover_image=scraped["cover_image"],
         takeaways=scraped["takeaways"],
-        hook=ai["hook"],
-        slide_headlines=ai["slide_headlines"],
     )
 
     expected_count = len(scraped["takeaways"]) + 2
@@ -72,22 +59,24 @@ async def test_carousel_builder():
     for s in slides[1:-1]:
         assert s["type"] == "content", f"Middle slide {s['index']} must be content"
 
-    # HTML sanity checks
     for s in slides:
         assert "1080" in s["html"], f"Slide {s['index']} HTML missing '1080'"
     assert scraped["title"] in slides[0]["html"], "Cover slide must contain the blog title"
+
+    # Content slides must include headline text from scraped takeaways
+    for i, t in enumerate(scraped["takeaways"]):
+        assert t["headline"] in slides[i + 1]["html"], (
+            f"Slide {i + 1} missing headline: {t['headline']!r}"
+        )
 
 
 @pytest.mark.asyncio
 async def test_image_renderer():
     scraped = await scrape_post(TEST_URL)
-    ai = await generate_content(scraped["title"], scraped["takeaways"])
     slides = build_slides(
         title=scraped["title"],
         cover_image=scraped["cover_image"],
         takeaways=scraped["takeaways"],
-        hook=ai["hook"],
-        slide_headlines=ai["slide_headlines"],
     )
 
     rendered = await render_slides(slides)
