@@ -1,10 +1,14 @@
 import html as html_mod
-from app.utils.brand import BRAND_PRIMARY, BRAND_ACCENT, BRAND_DARK_BG, SLIDE_WIDTH, SLIDE_HEIGHT, IG_HANDLE
+from app.utils.brand import (
+    SLIDE_WIDTH, SLIDE_HEIGHT,
+    SLIDE_BG, COVER_BG, TEXT_HEADLINE, TEXT_BODY,
+    PROGRESS_BAR_COLOR, ACCENT_BLUE,
+)
 
 _FONTS = """
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;700&family=Plus+Jakarta+Sans:wght@700;800&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Source+Serif+4:ital,wght@0,400;0,500;1,400&family=Plus+Jakarta+Sans:wght@400;500;600&display=swap" rel="stylesheet">
 """
 
 _BASE_CSS = f"""
@@ -13,46 +17,14 @@ body {{
     width: {SLIDE_WIDTH}px;
     height: {SLIDE_HEIGHT}px;
     overflow: hidden;
-    font-family: 'DM Sans', sans-serif;
+    font-family: 'Plus Jakarta Sans', sans-serif;
+    -webkit-font-smoothing: antialiased;
 }}
 .slide {{
     width: {SLIDE_WIDTH}px;
     height: {SLIDE_HEIGHT}px;
     position: relative;
     overflow: hidden;
-    display: flex;
-    flex-direction: column;
-}}
-.content {{
-    flex: 1;
-    display: flex;
-    flex-direction: column;
-    justify-content: center;
-    padding: 80px;
-    position: relative;
-    z-index: 2;
-}}
-.brand-strip {{
-    height: 72px;
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    padding: 0 80px;
-    position: relative;
-    z-index: 2;
-    flex-shrink: 0;
-}}
-.brand-handle {{
-    font-family: 'DM Sans', sans-serif;
-    font-size: 18px;
-    font-weight: 700;
-    letter-spacing: 0.5px;
-}}
-.progress {{
-    font-family: 'DM Sans', sans-serif;
-    font-size: 16px;
-    font-weight: 500;
-    opacity: 0.7;
 }}
 """
 
@@ -75,204 +47,170 @@ def _esc(text: str) -> str:
     return html_mod.escape(str(text))
 
 
-def _truncate(text: str, limit: int = 280) -> str:
-    return text if len(text) <= limit else text[:limit - 1] + "…"
+def _progress_bar(index: int, total: int) -> str:
+    pct = round((index + 1) / total * 100, 2)
+    return f"""
+    <div style="
+        position: absolute;
+        bottom: 0; left: 0;
+        width: {pct}%;
+        height: 8px;
+        background: {PROGRESS_BAR_COLOR};
+    "></div>"""
 
 
-def build_cover_slide(title: str, hook: str, cover_image: str | None, index: int, total: int) -> str:
-    img_css = ""
+def build_cover_slide(title: str, cover_image: str | None) -> str:
+    cover_top_h = round(SLIDE_HEIGHT * 0.65)   # 702px
+    cover_bot_h = SLIDE_HEIGHT - cover_top_h   # 378px
+
     if cover_image:
-        img_css = f"""
-.bg-img {{
-    position: absolute; inset: 0; z-index: 0;
-    background: url('{cover_image}') center/cover no-repeat;
-}}
-.overlay {{
-    position: absolute; inset: 0; z-index: 1;
-    background: linear-gradient(160deg, rgba(26,26,46,0.85) 0%, rgba(26,26,46,0.95) 100%);
-}}"""
+        img_section = f"""
+        <div style="
+            width: {SLIDE_WIDTH}px;
+            height: {cover_top_h}px;
+            background: url('{cover_image}') center/cover no-repeat;
+            flex-shrink: 0;
+        "></div>"""
     else:
-        img_css = f"""
-.bg-img {{ position: absolute; inset: 0; z-index: 0; background: {BRAND_DARK_BG}; }}
-.overlay {{ display: none; }}"""
+        img_section = f"""
+        <div style="
+            width: {SLIDE_WIDTH}px;
+            height: {cover_top_h}px;
+            background: {SLIDE_BG};
+            flex-shrink: 0;
+        "></div>"""
 
-    extra_css = img_css + f"""
-.hook {{
-    font-family: 'DM Sans', sans-serif;
-    font-size: 20px;
-    font-weight: 500;
-    color: {BRAND_PRIMARY};
-    letter-spacing: 2px;
-    text-transform: uppercase;
-    margin-bottom: 28px;
-}}
-.title {{
-    font-family: 'Plus Jakarta Sans', sans-serif;
-    font-size: 54px;
-    font-weight: 800;
-    color: #FFFFFF;
-    line-height: 1.15;
-    margin-bottom: 48px;
-}}
-.accent-line {{
-    width: 64px; height: 6px;
-    background: {BRAND_PRIMARY};
-    border-radius: 3px;
-    margin-bottom: 28px;
-}}
-"""
-
-    body_bg = "" if cover_image else f"background:{BRAND_DARK_BG};"
+    extra_css = ""
     return f"""{_head(extra_css)}
-<div class="slide" style="{body_bg}">
-  <div class="bg-img"></div>
-  <div class="overlay"></div>
-  <div class="content" style="justify-content:flex-end; padding-bottom:40px;">
-    <div class="accent-line"></div>
-    <div class="hook">{_esc(hook)}</div>
-    <div class="title">{_esc(title)}</div>
-  </div>
-  <div class="brand-strip" style="background:rgba(0,0,0,0.4);">
-    <span class="brand-handle" style="color:{BRAND_PRIMARY};">{_esc(IG_HANDLE)}</span>
-    <span class="progress" style="color:#fff;">{index + 1}/{total}</span>
-  </div>
+<div class="slide" style="display: flex; flex-direction: column; background: {COVER_BG};">
+    {img_section}
+    <div style="
+        width: {SLIDE_WIDTH}px;
+        height: {cover_bot_h}px;
+        background: {COVER_BG};
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        padding: 40px 80px;
+        flex-shrink: 0;
+    ">
+        <div style="
+            font-family: 'Source Serif 4', serif;
+            font-size: 40px;
+            font-weight: 400;
+            color: {TEXT_HEADLINE};
+            text-align: center;
+            line-height: 1.3;
+            margin-bottom: 24px;
+        ">{_esc(title)}</div>
+        <div style="
+            width: 40px;
+            height: 4px;
+            background: {PROGRESS_BAR_COLOR};
+            border-radius: 2px;
+        "></div>
+    </div>
 </div>
 </body></html>"""
 
 
-def build_content_slide(headline: str, body: str, takeaway_num: int, index: int, total: int) -> str:
-    is_dark = (index % 2 == 1)
-    bg = BRAND_DARK_BG if is_dark else BRAND_ACCENT
-    text_color = "#FFFFFF"
-    label_color = BRAND_PRIMARY if is_dark else "rgba(255,255,255,0.6)"
-
-    extra_css = f"""
-.slide-bg {{ position: absolute; inset: 0; background: {bg}; z-index: 0; }}
-.deco-num {{
-    position: absolute;
-    right: -20px; top: 50%;
-    transform: translateY(-50%);
-    font-family: 'Plus Jakarta Sans', sans-serif;
-    font-size: 320px;
-    font-weight: 800;
-    color: rgba(255,255,255,0.04);
-    line-height: 1;
-    z-index: 1;
-    user-select: none;
-}}
-.label {{
-    font-family: 'DM Sans', sans-serif;
-    font-size: 16px;
-    font-weight: 700;
-    letter-spacing: 3px;
-    color: {label_color};
-    text-transform: uppercase;
-    margin-bottom: 20px;
-}}
-.accent-line {{
-    width: 48px; height: 5px;
-    background: {BRAND_PRIMARY};
-    border-radius: 3px;
-    margin-bottom: 32px;
-}}
-.headline {{
-    font-family: 'Plus Jakarta Sans', sans-serif;
-    font-size: 48px;
-    font-weight: 800;
-    color: {text_color};
-    line-height: 1.2;
-    margin-bottom: 32px;
-}}
-.body-text {{
-    font-family: 'DM Sans', sans-serif;
-    font-size: 22px;
-    font-weight: 400;
-    color: rgba(255,255,255,0.8);
-    line-height: 1.6;
-}}
-"""
-    return f"""{_head(extra_css)}
-<div class="slide">
-  <div class="slide-bg"></div>
-  <div class="deco-num">{takeaway_num}</div>
-  <div class="content" style="z-index:2;">
-    <div class="label">Key Takeaway {takeaway_num}</div>
-    <div class="accent-line"></div>
-    <div class="headline">{_esc(headline)}</div>
-    <div class="body-text">{_esc(_truncate(body))}</div>
-  </div>
-  <div class="brand-strip" style="background:rgba(0,0,0,0.2);">
-    <span class="brand-handle" style="color:{BRAND_PRIMARY};">{_esc(IG_HANDLE)}</span>
-    <span class="progress" style="color:rgba(255,255,255,0.7);">{index + 1}/{total}</span>
-  </div>
+def build_content_slide(headline: str, body: str, index: int, total: int) -> str:
+    pad = 65
+    return f"""{_head()}
+<div class="slide" style="background: {SLIDE_BG};">
+    <div style="
+        padding: {pad}px {pad}px 0 {pad}px;
+        padding-top: 120px;
+    ">
+        <div style="
+            font-family: 'Source Serif 4', serif;
+            font-size: 38px;
+            font-weight: 500;
+            color: {TEXT_HEADLINE};
+            line-height: 1.3;
+            margin-bottom: 40px;
+        ">{_esc(headline)}</div>
+        <div style="
+            font-family: 'Plus Jakarta Sans', sans-serif;
+            font-size: 23px;
+            font-weight: 400;
+            color: {TEXT_BODY};
+            line-height: 1.65;
+        ">{_esc(body)}</div>
+    </div>
+    {_progress_bar(index, total)}
 </div>
 </body></html>"""
 
 
 def build_cta_slide(index: int, total: int) -> str:
-    extra_css = f"""
-.slide-bg {{
-    position: absolute; inset: 0; z-index: 0;
-    background: linear-gradient(135deg, {BRAND_PRIMARY} 0%, {BRAND_ACCENT} 100%);
-}}
-.cta-content {{
-    flex: 1;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    padding: 80px;
-    z-index: 2;
-    text-align: center;
-}}
-.cta-label {{
-    font-family: 'DM Sans', sans-serif;
-    font-size: 18px;
-    font-weight: 700;
-    letter-spacing: 3px;
-    text-transform: uppercase;
-    color: rgba(255,255,255,0.7);
-    margin-bottom: 28px;
-}}
-.cta-heading {{
-    font-family: 'Plus Jakarta Sans', sans-serif;
-    font-size: 60px;
-    font-weight: 800;
-    color: #FFFFFF;
-    line-height: 1.15;
-    margin-bottom: 40px;
-}}
-.cta-btn {{
-    background: #FFFFFF;
-    color: {BRAND_PRIMARY};
-    font-family: 'Plus Jakarta Sans', sans-serif;
-    font-size: 22px;
-    font-weight: 800;
-    padding: 20px 56px;
-    border-radius: 50px;
-    margin-bottom: 36px;
-    display: inline-block;
-}}
-.cta-url {{
-    font-family: 'DM Sans', sans-serif;
-    font-size: 20px;
-    color: rgba(255,255,255,0.8);
-    letter-spacing: 0.5px;
-}}
-"""
-    return f"""{_head(extra_css)}
-<div class="slide">
-  <div class="slide-bg"></div>
-  <div class="cta-content">
-    <div class="cta-label">Want to go deeper?</div>
-    <div class="cta-heading">Read the Full Article</div>
-    <div class="cta-btn">Read Now</div>
-    <div class="cta-url">clearerthinking.org/blog</div>
-  </div>
-  <div class="brand-strip" style="background:rgba(0,0,0,0.15);">
-    <span class="brand-handle" style="color:#fff; opacity:0.9;">{_esc(IG_HANDLE)}</span>
-    <span class="progress" style="color:rgba(255,255,255,0.7);">{index + 1}/{total}</span>
-  </div>
+    return f"""{_head()}
+<div class="slide" style="background: {SLIDE_BG}; display: flex; flex-direction: column; align-items: center; justify-content: center;">
+    <div style="
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        text-align: center;
+        padding: 0 100px;
+        gap: 56px;
+    ">
+        <div style="
+            font-family: 'Source Serif 4', serif;
+            font-size: 32px;
+            font-weight: 400;
+            color: {TEXT_HEADLINE};
+            line-height: 1.4;
+            max-width: 700px;
+        ">Read the full article (or listen to it) on our website</div>
+
+        <div style="display: flex; align-items: center; gap: 28px;">
+            <div style="
+                width: 0; height: 0;
+                border-top: 16px solid transparent;
+                border-bottom: 16px solid transparent;
+                border-left: 24px solid {ACCENT_BLUE};
+                opacity: 0.7;
+            "></div>
+
+            <div style="
+                background: #FFFFFF;
+                border-radius: 20px;
+                box-shadow: 0 4px 24px rgba(0,0,0,0.10);
+                padding: 28px 48px;
+                display: flex;
+                flex-direction: column;
+                align-items: center;
+                gap: 10px;
+            ">
+                <div style="font-size: 36px;">&#x1F50D;</div>
+                <div style="
+                    font-family: 'Plus Jakarta Sans', sans-serif;
+                    font-size: 22px;
+                    font-weight: 600;
+                    color: {TEXT_HEADLINE};
+                ">ClearerThinking.org</div>
+            </div>
+
+            <div style="
+                width: 0; height: 0;
+                border-top: 16px solid transparent;
+                border-bottom: 16px solid transparent;
+                border-right: 24px solid {ACCENT_BLUE};
+                opacity: 0.7;
+            "></div>
+        </div>
+
+        <div style="
+            font-family: 'Plus Jakarta Sans', sans-serif;
+            font-size: 20px;
+            font-weight: 400;
+            color: {TEXT_BODY};
+            font-style: italic;
+        ">www.clearerthinking.org/blog</div>
+    </div>
+
+    {_progress_bar(index, total)}
 </div>
 </body></html>"""
 
@@ -288,22 +226,19 @@ def build_slides(
 
     slides = []
 
-    # Cover slide
     slides.append({
         "type": "cover",
         "index": 0,
-        "html": build_cover_slide(title, hook, cover_image, 0, total),
+        "html": build_cover_slide(title, cover_image),
     })
 
-    # Content slides
     for i, (takeaway, headline) in enumerate(zip(takeaways, slide_headlines)):
         slides.append({
             "type": "content",
             "index": i + 1,
-            "html": build_content_slide(headline, takeaway, i + 1, i + 1, total),
+            "html": build_content_slide(headline, takeaway, i + 1, total),
         })
 
-    # CTA slide
     slides.append({
         "type": "cta",
         "index": total - 1,

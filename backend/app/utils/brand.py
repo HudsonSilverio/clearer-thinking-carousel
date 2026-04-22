@@ -4,12 +4,12 @@ Single source of truth for all image-generation and API responses.
 """
 
 # ---------------------------------------------------------------------------
-# Top-level constants (checked by tests and other services)
+# Legacy top-level constants (kept for backwards compatibility)
 # ---------------------------------------------------------------------------
 
-BRAND_PRIMARY  = "#E8712A"   # orange — CTAs, highlights, accent lines
-BRAND_ACCENT   = "#2B5EA7"   # blue  — links, secondary actions
-BRAND_DARK_BG  = "#1A1A2E"   # dark navy — dark-mode slides, footers
+BRAND_PRIMARY  = "#E8712A"
+BRAND_ACCENT   = "#2B5EA7"
+BRAND_DARK_BG  = "#1A1A2E"
 
 SLIDE_WIDTH    = 1080
 SLIDE_HEIGHT   = 1080
@@ -17,28 +17,39 @@ SLIDE_HEIGHT   = 1080
 IG_HANDLE      = "@clearerthinking"
 
 # ---------------------------------------------------------------------------
+# New design constants (Instagram-accurate style)
+# ---------------------------------------------------------------------------
+
+SLIDE_BG            = "#E8EDF4"   # pale blue-gray — ALL content slides
+COVER_BG            = "#F5F5F8"   # near-white — bottom area of cover slide
+TEXT_HEADLINE       = "#555555"   # dark gray — headlines on content slides
+TEXT_BODY           = "#6B6B6B"   # mid gray — body text on content slides
+PROGRESS_BAR_COLOR  = "#E8A838"   # warm amber — progress bar on all non-cover slides
+ACCENT_BLUE         = "#4A90D9"   # blue — CTA decorative elements only
+
+
+# ---------------------------------------------------------------------------
 # Colors
 # ---------------------------------------------------------------------------
 
 class Colors:
-    # Brand
+    # Brand (legacy)
     PRIMARY       = BRAND_PRIMARY
     ACCENT        = BRAND_ACCENT
     DARK_BG       = BRAND_DARK_BG
 
-    # Text
-    HEADING       = "#303030"
-    BODY          = "#737373"
-    SUBTLE        = "#646464"
-    WHITE         = "#FFFFFF"
-
-    # Backgrounds
-    OFF_WHITE     = "#F7F7F7"
-    CREAM         = "#EBE5D6"
+    # New palette
+    SLIDE_BG      = SLIDE_BG
+    COVER_BG      = COVER_BG
+    HEADLINE      = TEXT_HEADLINE
+    BODY          = TEXT_BODY
+    PROGRESS      = PROGRESS_BAR_COLOR
+    CTA_BLUE      = ACCENT_BLUE
 
     # Utility
+    WHITE         = "#FFFFFF"
+    OFF_WHITE     = "#F7F7F7"
     BORDER        = "#E0E0E0"
-    DISABLED      = "#C7C7C7"
 
 
 # ---------------------------------------------------------------------------
@@ -46,32 +57,23 @@ class Colors:
 # ---------------------------------------------------------------------------
 
 class Fonts:
-    # Carousel brand fonts (TTF files in assets/fonts/)
-    HEADING_FILE   = "assets/fonts/PlusJakartaSans-ExtraBold.ttf"   # Plus Jakarta Sans
-    BODY_FILE      = "assets/fonts/DMSans-Regular.ttf"               # DM Sans
+    # Web names used in HTML/CSS
+    HEADLINE_WEB  = "'Source Serif 4', serif"
+    BODY_WEB      = "'Plus Jakarta Sans', sans-serif"
+
+    # Legacy TTF paths (kept for any Pillow-based rendering)
+    HEADING_FILE   = "assets/fonts/PlusJakartaSans-ExtraBold.ttf"
+    BODY_FILE      = "assets/fonts/DMSans-Regular.ttf"
     BODY_BOLD_FILE = "assets/fonts/DMSans-Bold.ttf"
-
-    # CSS / web names
-    HEADING_WEB    = "Plus Jakarta Sans, sans-serif"
-    BODY_WEB       = "DM Sans, sans-serif"
-
-    # System fallback when font files are missing
     FALLBACK       = "arial.ttf"
 
 
 class FontSizes:
-    # Slide title (maps to site H1)
-    SLIDE_TITLE   = 52
-    # Slide subtitle / section heading (maps to H2)
-    SLIDE_H2      = 36
-    # Takeaway heading (maps to H3)
-    TAKEAWAY_HEAD = 28
-    # Body copy on slides
+    COVER_TITLE   = 40
+    SLIDE_HEADLINE = 36
     SLIDE_BODY    = 22
-    # Caption / metadata
-    CAPTION       = 16
-    # Branding tag on each slide
-    BRAND_TAG     = 14
+    CTA_HEADING   = 30
+    CTA_URL       = 20
 
 
 # ---------------------------------------------------------------------------
@@ -79,16 +81,11 @@ class FontSizes:
 # ---------------------------------------------------------------------------
 
 class SlideDimensions:
-    # Instagram / LinkedIn square carousel
-    SQUARE_W      = 1080
-    SQUARE_H      = 1080
-
-    # Instagram portrait (4:5) — maximum feed real-estate
-    PORTRAIT_W    = 1080
-    PORTRAIT_H    = 1350
-
-    # Safe inner padding (keeps text away from edges)
-    PADDING       = 80
+    SQUARE_W   = 1080
+    SQUARE_H   = 1080
+    PORTRAIT_W = 1080
+    PORTRAIT_H = 1350
+    PADDING    = 65
 
 
 # ---------------------------------------------------------------------------
@@ -96,17 +93,12 @@ class SlideDimensions:
 # ---------------------------------------------------------------------------
 
 class Layout:
-    # Rounded corner radius for cards and slides
-    CORNER_RADIUS = 24
-
-    # Vertical gap between elements inside a slide
-    ELEMENT_GAP   = 32
-
-    # Thickness of the accent underline beneath titles
-    ACCENT_LINE_H = 6
-
-    # Logo / brand strip height at the bottom of each slide
-    BRAND_STRIP_H = 72
+    CORNER_RADIUS    = 24
+    ELEMENT_GAP      = 40
+    PROGRESS_BAR_H   = 8
+    COVER_IMAGE_PCT  = 65    # % of slide height used by cover image
+    ACCENT_BAR_W     = 40
+    ACCENT_BAR_H     = 4
 
 
 # ---------------------------------------------------------------------------
