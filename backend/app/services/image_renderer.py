@@ -4,10 +4,31 @@ import tempfile
 from pathlib import Path
 from playwright.async_api import async_playwright
 import PIL.JpegImagePlugin  # registers JPEG encoder required by Pillow's PDF plugin
-from PIL import Image
+from PIL import Image, ImageDraw
 from app.utils.brand import SLIDE_WIDTH, SLIDE_HEIGHT
 
 OUTPUT_DIR = Path(__file__).resolve().parents[4] / "generated_carousels"
+
+
+def _render_cta_image(slide: dict, out_path: Path) -> None:
+    """Load cta-slide.png, scale to 1080×1080 (cover crop), add progress bar."""
+    img = Image.open(slide["cta_image_path"]).convert("RGB")
+    w, h = img.size
+    scale = max(SLIDE_WIDTH / w, SLIDE_HEIGHT / h)
+    nw = int(w * scale + 0.5)
+    nh = int(h * scale + 0.5)
+    img = img.resize((nw, nh), Image.LANCZOS)
+    x = (nw - SLIDE_WIDTH) // 2
+    y = (nh - SLIDE_HEIGHT) // 2
+    img = img.crop((x, y, x + SLIDE_WIDTH, y + SLIDE_HEIGHT))
+
+    draw = ImageDraw.Draw(img)
+    bar_h = 8
+    hex_col = slide["progress_bar_color"].lstrip("#")
+    rgb = tuple(int(hex_col[i: i + 2], 16) for i in (0, 2, 4))
+    draw.rectangle([0, SLIDE_HEIGHT - bar_h, SLIDE_WIDTH, SLIDE_HEIGHT], fill=rgb)
+
+    img.save(str(out_path), "PNG")
 
 
 async def render_slides(slides: list[dict], carousel_id: str | None = None) -> dict:
@@ -17,7 +38,11 @@ async def render_slides(slides: list[dict], carousel_id: str | None = None) -> d
     out_dir = OUTPUT_DIR / carousel_id
     out_dir.mkdir(parents=True, exist_ok=True)
 
-    png_paths: list[str] = []
+    # (index, path) collected from both HTML and image slides
+    indexed_paths: list[tuple[int, str]] = []
+
+    # ── HTML slides via Playwright ────────────────────────────────────────────
+    html_slides = [s for s in slides if s.get("html") is not None]
 
     async with async_playwright() as p:
         browser = await p.chromium.launch()
@@ -25,10 +50,8 @@ async def render_slides(slides: list[dict], carousel_id: str | None = None) -> d
             viewport={"width": SLIDE_WIDTH, "height": SLIDE_HEIGHT},
         )
 
-        for slide in slides:
+        for slide in html_slides:
             page = await context.new_page()
-
-            # Write HTML to a temp file and load as file:// URL
             with tempfile.NamedTemporaryFile(
                 suffix=".html", mode="w", encoding="utf-8", delete=False
             ) as f:
@@ -36,21 +59,33 @@ async def render_slides(slides: list[dict], carousel_id: str | None = None) -> d
                 tmp_path = f.name
 
             try:
-                await page.goto(f"file:///{tmp_path.replace(os.sep, '/')}", wait_until="load")
-                # Wait for Google Fonts to load
+                await page.goto(
+                    f"file:///{tmp_path.replace(os.sep, '/')}",
+                    wait_until="load",
+                )
                 await page.wait_for_timeout(1500)
-
                 png_path = out_dir / f"slide_{slide['index']:02d}.png"
                 await page.screenshot(
                     path=str(png_path),
                     clip={"x": 0, "y": 0, "width": SLIDE_WIDTH, "height": SLIDE_HEIGHT},
                 )
-                png_paths.append(str(png_path))
+                indexed_paths.append((slide["index"], str(png_path)))
             finally:
                 await page.close()
                 os.unlink(tmp_path)
 
         await browser.close()
+
+    # ── Image-based slides via Pillow ─────────────────────────────────────────
+    for slide in slides:
+        if slide.get("type") == "cta_image":
+            png_path = out_dir / f"slide_{slide['index']:02d}.png"
+            _render_cta_image(slide, png_path)
+            indexed_paths.append((slide["index"], str(png_path)))
+
+    # Sort by slide index to get final ordered list
+    indexed_paths.sort(key=lambda x: x[0])
+    png_paths = [p for _, p in indexed_paths]
 
     pdf_path = _build_pdf(png_paths, out_dir, carousel_id)
 
@@ -64,11 +99,7 @@ async def render_slides(slides: list[dict], carousel_id: str | None = None) -> d
 
 
 def _build_pdf(png_paths: list[str], out_dir: Path, carousel_id: str) -> Path:
-    images = []
-    for p in png_paths:
-        img = Image.open(p).convert("RGB")
-        images.append(img)
-
+    images = [Image.open(p).convert("RGB") for p in png_paths]
     pdf_path = out_dir / f"{carousel_id}.pdf"
     if images:
         images[0].save(

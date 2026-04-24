@@ -22,6 +22,7 @@ class GenerateRequest(BaseModel):
 class TakeawayItem(BaseModel):
     headline: str
     body: str
+    slide_image: str | None = None
 
 
 class ColorsInput(BaseModel):
@@ -31,11 +32,19 @@ class ColorsInput(BaseModel):
     progress_bar: str = "#E8A838"
 
 
+class TypographyInput(BaseModel):
+    headline_font: str = "Source Serif 4"
+    body_font: str = "Plus Jakarta Sans"
+    headline_size: int = 32
+    body_size: int = 22
+
+
 class RenderCustomRequest(BaseModel):
     title: str
     cover_image: str | None = None
     takeaways: list[TakeawayItem]
     colors: ColorsInput = ColorsInput()
+    typography: TypographyInput = TypographyInput()
 
 
 @router.post("/generate")
@@ -89,13 +98,22 @@ async def generate_carousel(body: GenerateRequest):
 
 @router.post("/render-custom")
 async def render_custom(body: RenderCustomRequest):
-    """Re-render a carousel with edited content and custom colors."""
-    takeaways = [{"headline": t.headline, "body": t.body} for t in body.takeaways]
+    """Re-render a carousel with edited content, colors, and typography."""
+    takeaways = [
+        {"headline": t.headline, "body": t.body, "slide_image": t.slide_image}
+        for t in body.takeaways
+    ]
     colors = {
         "slide_bg": body.colors.slide_bg,
         "headline": body.colors.headline,
         "body": body.colors.body,
         "progress_bar": body.colors.progress_bar,
+    }
+    typography = {
+        "headline_font": body.typography.headline_font,
+        "body_font":     body.typography.body_font,
+        "headline_size": body.typography.headline_size,
+        "body_size":     body.typography.body_size,
     }
 
     slides = build_slides(
@@ -103,6 +121,7 @@ async def render_custom(body: RenderCustomRequest):
         cover_image=body.cover_image,
         takeaways=takeaways,
         colors=colors,
+        typography=typography,
     )
 
     carousel_id = uuid.uuid4().hex

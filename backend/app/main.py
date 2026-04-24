@@ -10,7 +10,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from dotenv import load_dotenv
-from app.api.routes import blog, carousel
+from app.api.routes import blog, carousel, upload
 
 load_dotenv()
 
@@ -29,6 +29,7 @@ app.add_middleware(
 
 app.include_router(blog.router, prefix="/api")
 app.include_router(carousel.router, prefix="/api")
+app.include_router(upload.router, prefix="/api")
 
 app.mount(
     "/generated_carousels",

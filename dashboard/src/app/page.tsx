@@ -4,7 +4,7 @@ import { useState, useRef, useCallback } from "react";
 import {
   ChevronLeft, ChevronRight, Download, RotateCcw,
   Loader2, AlertCircle, Sparkles, Copy, Check,
-  RefreshCw, X, Settings,
+  RefreshCw, X, Settings, Type,
 } from "lucide-react";
 
 const API = "http://localhost:8001";
@@ -12,7 +12,12 @@ const SLIDE_FULL = 1080;
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
-interface Takeaway { headline: string; body: string }
+interface Takeaway {
+  headline: string;
+  body: string;
+  slideImageUrl?: string;
+  slideImagePath?: string;
+}
 
 interface SlideColors {
   slideBg: string;
@@ -21,14 +26,23 @@ interface SlideColors {
   progressBar: string;
 }
 
+interface SlideTypography {
+  headlineFont: string;
+  bodyFont: string;
+  headlineSize: number;
+  bodySize: number;
+}
+
 interface CarouselState {
   id: string;
   title: string;
   coverImage: string | null;
+  coverImagePath: string | null;
   takeaways: Takeaway[];
   caption: string;
   hashtags: string[];
   colors: SlideColors;
+  typography: SlideTypography;
 }
 
 type Phase = "idle" | "scraping" | "generating" | "rendering" | "done" | "error";
@@ -40,16 +54,38 @@ const DEFAULT_COLORS: SlideColors = {
   progressBar: "#E8A838",
 };
 
-const PHASE_LABELS = {
-  scraping: "Lendo o artigo...",
-  generating: "Gerando conteúdo com IA...",
-  rendering: "Construindo os slides...",
+const DEFAULT_TYPOGRAPHY: SlideTypography = {
+  headlineFont: "Source Serif 4",
+  bodyFont: "Plus Jakarta Sans",
+  headlineSize: 32,
+  bodySize: 22,
 };
 
-// ─── Slide renderers (HTML at 1080×1080, scaled for display) ──────────────────
+const FONT_OPTIONS = [
+  "Source Serif 4", "Plus Jakarta Sans", "DM Sans",
+  "Inter", "Lora", "Merriweather", "Roboto", "Open Sans",
+];
+
+const FONT_CSS: Record<string, string> = {
+  "Plus Jakarta Sans": "var(--font-jakarta, 'Plus Jakarta Sans', sans-serif)",
+  "DM Sans":           "var(--font-dm, 'DM Sans', sans-serif)",
+  "Source Serif 4":    "var(--font-serif, 'Source Serif 4', serif)",
+  "Inter":             "var(--font-inter, 'Inter', sans-serif)",
+  "Lora":              "var(--font-lora, 'Lora', serif)",
+  "Merriweather":      "var(--font-merriweather, 'Merriweather', serif)",
+  "Roboto":            "var(--font-roboto, 'Roboto', sans-serif)",
+  "Open Sans":         "var(--font-opensans, 'Open Sans', sans-serif)",
+};
+
+const PHASE_LABELS = {
+  scraping:   "Lendo o artigo...",
+  generating: "Gerando conteúdo com IA...",
+  rendering:  "Construindo os slides...",
+};
+
+// ─── Slide components ─────────────────────────────────────────────────────────
 
 const COVER_BG = "#F5F5F8";
-const ACCENT_BLUE = "#4A90D9";
 
 function SlideScaler({ displaySize, children }: { displaySize: number; children: React.ReactNode }) {
   const scale = displaySize / SLIDE_FULL;
@@ -62,9 +98,7 @@ function SlideScaler({ displaySize, children }: { displaySize: number; children:
   );
 }
 
-function EditableDiv({
-  value, onChange, style,
-}: {
+function EditableDiv({ value, onChange, style }: {
   value: string;
   onChange: (v: string) => void;
   style?: React.CSSProperties;
@@ -76,34 +110,37 @@ function EditableDiv({
       onBlur={(e) => onChange(e.currentTarget.textContent || "")}
       dangerouslySetInnerHTML={{ __html: value }}
       title="Clique para editar"
-      style={{
-        outline: "none",
-        cursor: "text",
-        borderRadius: 4,
-        transition: "background 0.15s",
-        ...style,
-      }}
+      style={{ outline: "none", cursor: "text", borderRadius: 4, transition: "background 0.15s", ...style }}
       onFocus={(e) => { (e.currentTarget as HTMLElement).style.background = "rgba(232,168,56,0.08)"; }}
       onBlurCapture={(e) => { (e.currentTarget as HTMLElement).style.background = ""; }}
     />
   );
 }
 
-function CoverSlide({ title, coverImage, colors, onTitleChange, onImageChange }: {
-  title: string; coverImage: string | null;
+function CoverSlide({ title, coverImage, colors, typography, onTitleChange, onImageUrlChange, onImageUpload }: {
+  title: string;
+  coverImage: string | null;
   colors: SlideColors;
+  typography: SlideTypography;
   onTitleChange: (v: string) => void;
-  onImageChange: (v: string) => void;
+  onImageUrlChange: (v: string) => void;
+  onImageUpload?: (file: File) => void;
 }) {
   const topH = Math.round(SLIDE_FULL * 0.65);
   const botH = SLIDE_FULL - topH;
   const [showImgInput, setShowImgInput] = useState(false);
   const [imgUrl, setImgUrl] = useState(coverImage || "");
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const hf = FONT_CSS[typography.headlineFont] || "'Source Serif 4', serif";
 
   return (
     <div style={{ width: SLIDE_FULL, height: SLIDE_FULL, display: "flex", flexDirection: "column", background: COVER_BG }}>
-      <div style={{ width: SLIDE_FULL, height: topH, flexShrink: 0, position: "relative", background: coverImage ? undefined : colors.slideBg, backgroundImage: coverImage ? `url(${coverImage})` : undefined, backgroundSize: "cover", backgroundPosition: "center" }}>
-        {/* Change image overlay */}
+      <div style={{
+        width: SLIDE_FULL, height: topH, flexShrink: 0, position: "relative",
+        background: coverImage ? undefined : colors.slideBg,
+        backgroundImage: coverImage ? `url(${coverImage})` : undefined,
+        backgroundSize: "cover", backgroundPosition: "center",
+      }}>
         <div
           onClick={() => setShowImgInput(v => !v)}
           style={{ position: "absolute", top: 20, right: 20, background: "rgba(0,0,0,0.5)", color: "#fff", fontSize: 18, padding: "8px 18px", borderRadius: 8, cursor: "pointer", fontFamily: "var(--font-dm)" }}
@@ -111,18 +148,38 @@ function CoverSlide({ title, coverImage, colors, onTitleChange, onImageChange }:
           Trocar imagem
         </div>
         {showImgInput && (
-          <div style={{ position: "absolute", top: 60, right: 20, background: "#fff", borderRadius: 12, padding: 16, boxShadow: "0 4px 20px rgba(0,0,0,0.15)", display: "flex", gap: 8, zIndex: 10 }}>
-            <input
-              type="url"
-              value={imgUrl}
-              onChange={e => setImgUrl(e.target.value)}
-              placeholder="Cole a URL da imagem..."
-              style={{ border: "1px solid #ddd", borderRadius: 8, padding: "6px 12px", fontSize: 16, width: 400, outline: "none" }}
-            />
-            <button
-              onClick={() => { onImageChange(imgUrl); setShowImgInput(false); }}
-              style={{ background: "#E8712A", color: "#fff", border: "none", borderRadius: 8, padding: "6px 16px", cursor: "pointer", fontSize: 16 }}
-            >OK</button>
+          <div style={{ position: "absolute", top: 64, right: 20, background: "#fff", borderRadius: 12, padding: 16, boxShadow: "0 4px 20px rgba(0,0,0,0.18)", display: "flex", flexDirection: "column", gap: 10, zIndex: 10, minWidth: 340 }}>
+            {onImageUpload && (
+              <>
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept="image/*"
+                  style={{ display: "none" }}
+                  onChange={e => { const f = e.target.files?.[0]; if (f) { onImageUpload(f); setShowImgInput(false); } }}
+                />
+                <button
+                  onClick={() => fileInputRef.current?.click()}
+                  style={{ background: "#E8712A", color: "#fff", border: "none", borderRadius: 8, padding: "8px 16px", cursor: "pointer", fontSize: 16, fontWeight: 600 }}
+                >
+                  Upload do computador
+                </button>
+                <div style={{ textAlign: "center", fontSize: 13, color: "#aaa" }}>ou cole uma URL</div>
+              </>
+            )}
+            <div style={{ display: "flex", gap: 8 }}>
+              <input
+                type="url"
+                value={imgUrl}
+                onChange={e => setImgUrl(e.target.value)}
+                placeholder="URL da imagem..."
+                style={{ border: "1px solid #ddd", borderRadius: 8, padding: "6px 12px", fontSize: 14, flex: 1, outline: "none" }}
+              />
+              <button
+                onClick={() => { onImageUrlChange(imgUrl); setShowImgInput(false); }}
+                style={{ background: "#E8712A", color: "#fff", border: "none", borderRadius: 8, padding: "6px 16px", cursor: "pointer", fontSize: 14 }}
+              >OK</button>
+            </div>
           </div>
         )}
       </div>
@@ -130,7 +187,7 @@ function CoverSlide({ title, coverImage, colors, onTitleChange, onImageChange }:
         <EditableDiv
           value={title}
           onChange={onTitleChange}
-          style={{ fontFamily: "var(--font-serif, 'Source Serif 4', serif)", fontSize: 40, fontWeight: 400, color: colors.headline, textAlign: "center", lineHeight: 1.3, marginBottom: 24, width: "100%" }}
+          style={{ fontFamily: hf, fontSize: typography.headlineSize, fontWeight: 400, color: colors.headline, textAlign: "center", lineHeight: 1.3, marginBottom: 24, width: "100%" }}
         />
         <div style={{ width: 40, height: 4, background: colors.progressBar, borderRadius: 2 }} />
       </div>
@@ -138,26 +195,67 @@ function CoverSlide({ title, coverImage, colors, onTitleChange, onImageChange }:
   );
 }
 
-function ContentSlide({ headline, body, index, total, colors, onHeadlineChange, onBodyChange }: {
+function ContentSlide({ headline, body, index, total, colors, typography, slideImage, onHeadlineChange, onBodyChange, onImageUpload, onImageRemove }: {
   headline: string; body: string; index: number; total: number;
-  colors: SlideColors;
+  colors: SlideColors; typography: SlideTypography;
+  slideImage?: string;
   onHeadlineChange: (v: string) => void;
   onBodyChange: (v: string) => void;
+  onImageUpload?: (file: File) => void;
+  onImageRemove?: () => void;
 }) {
   const pct = ((index + 1) / total) * 100;
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const hf = FONT_CSS[typography.headlineFont] || "'Source Serif 4', serif";
+  const bf = FONT_CSS[typography.bodyFont] || "'Plus Jakarta Sans', sans-serif";
+
   return (
     <div style={{ width: SLIDE_FULL, height: SLIDE_FULL, position: "relative", background: colors.slideBg }}>
-      <div style={{ padding: "120px 65px 0 65px" }}>
+      <div style={{ padding: "100px 65px 0 65px" }}>
         <EditableDiv
           value={headline}
           onChange={onHeadlineChange}
-          style={{ fontFamily: "var(--font-serif, 'Source Serif 4', serif)", fontSize: 38, fontWeight: 500, color: colors.headline, lineHeight: 1.3, marginBottom: 40 }}
+          style={{ fontFamily: hf, fontSize: typography.headlineSize, fontWeight: 500, color: colors.headline, lineHeight: 1.3, marginBottom: 32 }}
         />
         <EditableDiv
           value={body}
           onChange={onBodyChange}
-          style={{ fontFamily: "var(--font-jakarta, 'Plus Jakarta Sans', sans-serif)", fontSize: 23, fontWeight: 400, color: colors.body, lineHeight: 1.65 }}
+          style={{ fontFamily: bf, fontSize: typography.bodySize, fontWeight: 400, color: colors.body, lineHeight: 1.65 }}
         />
+        {slideImage && (
+          <div style={{ marginTop: 28 }}>
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src={slideImage} alt="" style={{ width: "100%", maxHeight: 260, objectFit: "cover", borderRadius: 12, display: "block" }} />
+          </div>
+        )}
+        {onImageUpload && (
+          <>
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="image/*"
+              style={{ display: "none" }}
+              onChange={e => { const f = e.target.files?.[0]; if (f) onImageUpload(f); e.target.value = ""; }}
+            />
+            <div style={{ marginTop: 24 }}>
+              {!slideImage ? (
+                <button
+                  onClick={() => fileInputRef.current?.click()}
+                  style={{ fontSize: 18, padding: "8px 20px", background: "rgba(255,255,255,0.85)", border: "1px dashed #ccc", borderRadius: 10, cursor: "pointer", color: "#777", fontFamily: "var(--font-dm)" }}
+                >
+                  + Adicionar imagem
+                </button>
+              ) : (
+                <button
+                  onClick={onImageRemove}
+                  style={{ fontSize: 18, padding: "8px 20px", background: "rgba(254,226,226,0.9)", border: "1px solid #fca5a5", borderRadius: 10, cursor: "pointer", color: "#dc2626", fontFamily: "var(--font-dm)" }}
+                >
+                  × Remover imagem
+                </button>
+              )}
+            </div>
+          </>
+        )}
       </div>
       <div style={{ position: "absolute", bottom: 0, left: 0, width: `${pct}%`, height: 8, background: colors.progressBar }} />
     </div>
@@ -167,21 +265,9 @@ function ContentSlide({ headline, body, index, total, colors, onHeadlineChange, 
 function CTASlide({ index, total, colors }: { index: number; total: number; colors: SlideColors }) {
   const pct = ((index + 1) / total) * 100;
   return (
-    <div style={{ width: SLIDE_FULL, height: SLIDE_FULL, position: "relative", background: colors.slideBg, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center" }}>
-      <div style={{ display: "flex", flexDirection: "column", alignItems: "center", textAlign: "center", padding: "0 100px", gap: 56 }}>
-        <div style={{ fontFamily: "var(--font-serif, 'Source Serif 4', serif)", fontSize: 32, fontWeight: 400, color: colors.headline, lineHeight: 1.4, maxWidth: 700 }}>
-          Read the full article (or listen to it) on our website
-        </div>
-        <div style={{ display: "flex", alignItems: "center", gap: 28 }}>
-          <div style={{ width: 0, height: 0, borderTop: "16px solid transparent", borderBottom: "16px solid transparent", borderLeft: `24px solid ${ACCENT_BLUE}`, opacity: 0.7 }} />
-          <div style={{ background: "#fff", borderRadius: 20, boxShadow: "0 4px 24px rgba(0,0,0,0.10)", padding: "28px 48px", display: "flex", flexDirection: "column", alignItems: "center", gap: 10 }}>
-            <div style={{ fontSize: 36 }}>🔍</div>
-            <div style={{ fontFamily: "var(--font-jakarta)", fontSize: 22, fontWeight: 600, color: colors.headline }}>ClearerThinking.org</div>
-          </div>
-          <div style={{ width: 0, height: 0, borderTop: "16px solid transparent", borderBottom: "16px solid transparent", borderRight: `24px solid ${ACCENT_BLUE}`, opacity: 0.7 }} />
-        </div>
-        <div style={{ fontFamily: "var(--font-jakarta)", fontSize: 20, fontWeight: 400, color: colors.body, fontStyle: "italic" }}>www.clearerthinking.org/blog</div>
-      </div>
+    <div style={{ width: SLIDE_FULL, height: SLIDE_FULL, position: "relative" }}>
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img src="/cta-slide.png" alt="CTA" style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} />
       <div style={{ position: "absolute", bottom: 0, left: 0, width: `${pct}%`, height: 8, background: colors.progressBar }} />
     </div>
   );
@@ -225,6 +311,7 @@ export default function Home() {
   const [carousel, setCarousel] = useState<CarouselState | null>(null);
   const [current, setCurrent] = useState(0);
   const [showColors, setShowColors] = useState(false);
+  const [showTypography, setShowTypography] = useState(false);
   const [downloading, setDownloading] = useState(false);
   const [newHashtag, setNewHashtag] = useState("");
   const [regenerating, setRegenerating] = useState(false);
@@ -262,10 +349,12 @@ export default function Home() {
         id: data.carousel_id,
         title: data.title,
         coverImage: data.cover_image ?? null,
+        coverImagePath: null,
         takeaways: data.takeaways,
         caption: data.caption,
         hashtags: data.hashtags,
         colors: { ...DEFAULT_COLORS },
+        typography: { ...DEFAULT_TYPOGRAPHY },
       });
       setPhase("done");
     } catch (e: unknown) {
@@ -283,13 +372,15 @@ export default function Home() {
   // ── Slide editing helpers ───────────────────────────────────────────────────
 
   const updateTitle = useCallback((v: string) => setCarousel(c => c ? { ...c, title: v } : c), []);
-  const updateCoverImage = useCallback((v: string) => setCarousel(c => c ? { ...c, coverImage: v } : c), []);
+  const updateCoverImageUrl = useCallback((v: string) => setCarousel(c => c ? { ...c, coverImage: v, coverImagePath: null } : c), []);
   const updateHeadline = useCallback((i: number, v: string) =>
     setCarousel(c => { if (!c) return c; const t = [...c.takeaways]; t[i] = { ...t[i], headline: v }; return { ...c, takeaways: t }; }), []);
   const updateBody = useCallback((i: number, v: string) =>
     setCarousel(c => { if (!c) return c; const t = [...c.takeaways]; t[i] = { ...t[i], body: v }; return { ...c, takeaways: t }; }), []);
   const updateColor = useCallback((key: keyof SlideColors, v: string) =>
     setCarousel(c => c ? { ...c, colors: { ...c.colors, [key]: v } } : c), []);
+  const updateTypography = useCallback((key: keyof SlideTypography, v: string | number) =>
+    setCarousel(c => c ? { ...c, typography: { ...c.typography, [key]: v } } : c), []);
   const updateCaption = useCallback((v: string) => setCarousel(c => c ? { ...c, caption: v } : c), []);
 
   function removeHashtag(tag: string) {
@@ -300,6 +391,48 @@ export default function Home() {
     const tag = newHashtag.startsWith("#") ? newHashtag.trim() : `#${newHashtag.trim()}`;
     setCarousel(c => c ? { ...c, hashtags: [...c.hashtags, tag] } : c);
     setNewHashtag("");
+  }
+
+  // ── Image upload helpers ────────────────────────────────────────────────────
+
+  async function handleCoverImageUpload(file: File) {
+    const form = new FormData();
+    form.append("file", file);
+    try {
+      const res = await fetch(`${API}/api/upload/image`, { method: "POST", body: form });
+      if (!res.ok) throw new Error();
+      const data = await res.json();
+      setCarousel(c => c ? { ...c, coverImage: `${API}${data.url}`, coverImagePath: data.path } : c);
+    } catch {
+      alert("Erro ao fazer upload da imagem.");
+    }
+  }
+
+  async function handleSlideImageUpload(takeawayIndex: number, file: File) {
+    const form = new FormData();
+    form.append("file", file);
+    try {
+      const res = await fetch(`${API}/api/upload/image`, { method: "POST", body: form });
+      if (!res.ok) throw new Error();
+      const data = await res.json();
+      setCarousel(c => {
+        if (!c) return c;
+        const t = [...c.takeaways];
+        t[takeawayIndex] = { ...t[takeawayIndex], slideImageUrl: `${API}${data.url}`, slideImagePath: data.path };
+        return { ...c, takeaways: t };
+      });
+    } catch {
+      alert("Erro ao fazer upload da imagem.");
+    }
+  }
+
+  function removeSlideImage(takeawayIndex: number) {
+    setCarousel(c => {
+      if (!c) return c;
+      const t = [...c.takeaways];
+      t[takeawayIndex] = { ...t[takeawayIndex], slideImageUrl: undefined, slideImagePath: undefined };
+      return { ...c, takeaways: t };
+    });
   }
 
   // ── AI Regenerate ───────────────────────────────────────────────────────────
@@ -333,13 +466,23 @@ export default function Home() {
     try {
       const body = {
         title: carousel.title,
-        cover_image: carousel.coverImage,
-        takeaways: carousel.takeaways,
+        cover_image: carousel.coverImagePath ?? carousel.coverImage,
+        takeaways: carousel.takeaways.map(t => ({
+          headline: t.headline,
+          body: t.body,
+          slide_image: t.slideImagePath ?? t.slideImageUrl ?? null,
+        })),
         colors: {
-          slide_bg: carousel.colors.slideBg,
-          headline: carousel.colors.headline,
-          body: carousel.colors.body,
+          slide_bg:     carousel.colors.slideBg,
+          headline:     carousel.colors.headline,
+          body:         carousel.colors.body,
           progress_bar: carousel.colors.progressBar,
+        },
+        typography: {
+          headline_font: carousel.typography.headlineFont,
+          body_font:     carousel.typography.bodyFont,
+          headline_size: carousel.typography.headlineSize,
+          body_size:     carousel.typography.bodySize,
         },
       };
       const res = await fetch(`${API}/api/carousel/render-custom`, {
@@ -347,10 +490,13 @@ export default function Home() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(body),
       });
-      if (!res.ok) throw new Error("Erro ao gerar PDF");
+      if (!res.ok) throw new Error("Erro ao gerar arquivo");
       const data = await res.json();
-      window.open(`${API}/api/carousel/${data.carousel_id}/pdf`, "_blank");
-    } catch (e) {
+      const fileUrl = format === "zip"
+        ? `${API}/api/carousel/${data.carousel_id}/zip`
+        : `${API}/api/carousel/${data.carousel_id}/pdf`;
+      window.open(fileUrl, "_blank");
+    } catch {
       alert("Erro ao baixar. Tente novamente.");
     } finally {
       setDownloading(false);
@@ -359,9 +505,10 @@ export default function Home() {
 
   // ── Slide rendering logic ───────────────────────────────────────────────────
 
-  function renderCurrentSlide(displaySize: number) {
+  function renderCurrentSlide() {
     if (!carousel) return null;
     const c = carousel.colors;
+    const ty = carousel.typography;
 
     if (current === 0) {
       return (
@@ -369,8 +516,10 @@ export default function Home() {
           title={carousel.title}
           coverImage={carousel.coverImage}
           colors={c}
+          typography={ty}
           onTitleChange={updateTitle}
-          onImageChange={updateCoverImage}
+          onImageUrlChange={updateCoverImageUrl}
+          onImageUpload={handleCoverImageUpload}
         />
       );
     }
@@ -385,19 +534,45 @@ export default function Home() {
         index={current}
         total={totalSlides}
         colors={c}
+        typography={ty}
+        slideImage={t.slideImageUrl}
         onHeadlineChange={v => updateHeadline(current - 1, v)}
         onBodyChange={v => updateBody(current - 1, v)}
+        onImageUpload={f => handleSlideImageUpload(current - 1, f)}
+        onImageRemove={() => removeSlideImage(current - 1)}
       />
     );
   }
 
-  function renderThumb(i: number, size: number) {
+  function renderThumb(i: number) {
     if (!carousel) return null;
     const c = carousel.colors;
-    if (i === 0) return <CoverSlide title={carousel.title} coverImage={carousel.coverImage} colors={c} onTitleChange={() => {}} onImageChange={() => {}} />;
+    const ty = carousel.typography;
+    if (i === 0) return (
+      <CoverSlide
+        title={carousel.title}
+        coverImage={carousel.coverImage}
+        colors={c}
+        typography={ty}
+        onTitleChange={() => {}}
+        onImageUrlChange={() => {}}
+      />
+    );
     if (i === totalSlides - 1) return <CTASlide index={i} total={totalSlides} colors={c} />;
     const t = carousel.takeaways[i - 1];
-    return <ContentSlide headline={t.headline} body={t.body} index={i} total={totalSlides} colors={c} onHeadlineChange={() => {}} onBodyChange={() => {}} />;
+    return (
+      <ContentSlide
+        headline={t.headline}
+        body={t.body}
+        index={i}
+        total={totalSlides}
+        colors={c}
+        typography={ty}
+        slideImage={t.slideImageUrl}
+        onHeadlineChange={() => {}}
+        onBodyChange={() => {}}
+      />
+    );
   }
 
   // ── Render ──────────────────────────────────────────────────────────────────
@@ -499,10 +674,9 @@ export default function Home() {
 
               {/* Left: slide viewer */}
               <div style={{ flex: "0 0 auto", display: "flex", flexDirection: "column", gap: 16 }}>
-                {/* Main slide */}
                 <div style={{ borderRadius: 16, overflow: "hidden", boxShadow: "0 4px 24px rgba(0,0,0,0.12)", position: "relative" }}>
                   <SlideScaler displaySize={DISPLAY}>
-                    {renderCurrentSlide(DISPLAY)}
+                    {renderCurrentSlide()}
                   </SlideScaler>
                   {current > 0 && (
                     <button onClick={() => setCurrent(c => c - 1)} style={{ position: "absolute", left: 10, top: "50%", transform: "translateY(-50%)", width: 36, height: 36, borderRadius: "50%", background: "rgba(255,255,255,0.92)", border: "none", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", boxShadow: "0 2px 8px rgba(0,0,0,0.15)" }}>
@@ -528,7 +702,7 @@ export default function Home() {
                       style={{ border: i === current ? "2px solid #E8712A" : "2px solid transparent", borderRadius: 8, overflow: "hidden", cursor: "pointer", padding: 0, background: "none", opacity: i === current ? 1 : 0.55, transition: "opacity 0.15s", boxShadow: i === current ? "0 0 0 2px rgba(232,113,42,0.25)" : "none" }}
                     >
                       <SlideScaler displaySize={THUMB}>
-                        {renderThumb(i, THUMB)}
+                        {renderThumb(i)}
                       </SlideScaler>
                     </button>
                   ))}
@@ -553,6 +727,65 @@ export default function Home() {
                       <ColorField label="Cor do título" value={carousel.colors.headline} onChange={v => updateColor("headline", v)} />
                       <ColorField label="Cor do texto" value={carousel.colors.body} onChange={v => updateColor("body", v)} />
                       <ColorField label="Barra de progresso" value={carousel.colors.progressBar} onChange={v => updateColor("progressBar", v)} />
+                    </div>
+                  )}
+                </div>
+
+                {/* Typography panel */}
+                <div style={{ background: "#fff", borderRadius: 16, border: "1px solid #eee", overflow: "hidden" }}>
+                  <button
+                    onClick={() => setShowTypography(v => !v)}
+                    style={{ width: "100%", display: "flex", alignItems: "center", justifyContent: "space-between", padding: "14px 18px", background: "none", border: "none", cursor: "pointer" }}
+                  >
+                    <span style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, fontWeight: 600, color: "#1A1A2E" }}><Type size={14} /> Tipografia</span>
+                    <span style={{ fontSize: 12, color: "#999" }}>{showTypography ? "▲" : "▼"}</span>
+                  </button>
+                  {showTypography && (
+                    <div style={{ padding: "4px 18px 18px", display: "flex", flexDirection: "column", gap: 16, borderTop: "1px solid #f0f0f0" }}>
+                      <div>
+                        <div style={{ fontSize: 13, color: "#555", marginBottom: 6 }}>Fonte do título</div>
+                        <select
+                          value={carousel.typography.headlineFont}
+                          onChange={e => updateTypography("headlineFont", e.target.value)}
+                          style={{ width: "100%", fontSize: 13, border: "1px solid #ddd", borderRadius: 8, padding: "7px 10px", outline: "none", background: "#fff" }}
+                        >
+                          {FONT_OPTIONS.map(f => <option key={f} value={f}>{f}</option>)}
+                        </select>
+                      </div>
+                      <div>
+                        <div style={{ fontSize: 13, color: "#555", display: "flex", justifyContent: "space-between", marginBottom: 6 }}>
+                          <span>Tamanho do título</span>
+                          <span style={{ fontWeight: 600, color: "#1A1A2E" }}>{carousel.typography.headlineSize}px</span>
+                        </div>
+                        <input
+                          type="range" min={24} max={48}
+                          value={carousel.typography.headlineSize}
+                          onChange={e => updateTypography("headlineSize", +e.target.value)}
+                          style={{ width: "100%", accentColor: "#E8712A" }}
+                        />
+                      </div>
+                      <div>
+                        <div style={{ fontSize: 13, color: "#555", marginBottom: 6 }}>Fonte do texto</div>
+                        <select
+                          value={carousel.typography.bodyFont}
+                          onChange={e => updateTypography("bodyFont", e.target.value)}
+                          style={{ width: "100%", fontSize: 13, border: "1px solid #ddd", borderRadius: 8, padding: "7px 10px", outline: "none", background: "#fff" }}
+                        >
+                          {FONT_OPTIONS.map(f => <option key={f} value={f}>{f}</option>)}
+                        </select>
+                      </div>
+                      <div>
+                        <div style={{ fontSize: 13, color: "#555", display: "flex", justifyContent: "space-between", marginBottom: 6 }}>
+                          <span>Tamanho do texto</span>
+                          <span style={{ fontWeight: 600, color: "#1A1A2E" }}>{carousel.typography.bodySize}px</span>
+                        </div>
+                        <input
+                          type="range" min={16} max={28}
+                          value={carousel.typography.bodySize}
+                          onChange={e => updateTypography("bodySize", +e.target.value)}
+                          style={{ width: "100%", accentColor: "#E8712A" }}
+                        />
+                      </div>
                     </div>
                   )}
                 </div>

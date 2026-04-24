@@ -1,15 +1,53 @@
+import base64
 import html as html_mod
+import mimetypes
+from pathlib import Path
 from app.utils.brand import (
     SLIDE_WIDTH, SLIDE_HEIGHT,
     SLIDE_BG, COVER_BG, TEXT_HEADLINE, TEXT_BODY,
-    PROGRESS_BAR_COLOR, ACCENT_BLUE,
+    PROGRESS_BAR_COLOR,
 )
 
-_FONTS = """
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Source+Serif+4:ital,wght@0,400;0,500;1,400&family=Plus+Jakarta+Sans:wght@400;500;600&display=swap" rel="stylesheet">
-"""
+_SITE_ROOT = Path(__file__).resolve().parents[3]  # clearer-thinking-carousel/
+CTA_IMAGE_PATH = _SITE_ROOT / "dashboard" / "public" / "cta-slide.png"
+
+# ─── Font registry ────────────────────────────────────────────────────────────
+
+_FONT_GF_PARAMS = {
+    "Plus Jakarta Sans": "Plus+Jakarta+Sans:wght@400;500;600",
+    "DM Sans":           "DM+Sans:wght@400;500",
+    "Source Serif 4":    "Source+Serif+4:ital,wght@0,400;0,500;1,400",
+    "Inter":             "Inter:wght@400;500;600",
+    "Lora":              "Lora:ital,wght@0,400;0,500;1,400",
+    "Merriweather":      "Merriweather:wght@400;700",
+    "Roboto":            "Roboto:wght@400;500",
+    "Open Sans":         "Open+Sans:wght@400;500;600",
+}
+
+_FONT_STACK = {
+    "Plus Jakarta Sans": "'Plus Jakarta Sans', sans-serif",
+    "DM Sans":           "'DM Sans', sans-serif",
+    "Source Serif 4":    "'Source Serif 4', serif",
+    "Inter":             "'Inter', sans-serif",
+    "Lora":              "'Lora', serif",
+    "Merriweather":      "'Merriweather', serif",
+    "Roboto":            "'Roboto', sans-serif",
+    "Open Sans":         "'Open Sans', sans-serif",
+}
+
+_DEFAULT_TYPOGRAPHY = {
+    "headline_font": "Source Serif 4",
+    "body_font":     "Plus Jakarta Sans",
+    "headline_size": 32,
+    "body_size":     22,
+}
+
+_DEFAULT_COLORS = {
+    "slide_bg":     SLIDE_BG,
+    "headline":     TEXT_HEADLINE,
+    "body":         TEXT_BODY,
+    "progress_bar": PROGRESS_BAR_COLOR,
+}
 
 _BASE_CSS = f"""
 * {{ margin: 0; padding: 0; box-sizing: border-box; }}
@@ -17,7 +55,6 @@ body {{
     width: {SLIDE_WIDTH}px;
     height: {SLIDE_HEIGHT}px;
     overflow: hidden;
-    font-family: 'Plus Jakarta Sans', sans-serif;
     -webkit-font-smoothing: antialiased;
 }}
 .slide {{
@@ -28,13 +65,7 @@ body {{
 }}
 """
 
-_DEFAULT_COLORS = {
-    "slide_bg": SLIDE_BG,
-    "headline": TEXT_HEADLINE,
-    "body": TEXT_BODY,
-    "progress_bar": PROGRESS_BAR_COLOR,
-}
-
+# ─── Helpers ─────────────────────────────────────────────────────────────────
 
 def _resolve_colors(overrides: dict | None) -> dict:
     c = dict(_DEFAULT_COLORS)
@@ -43,89 +74,95 @@ def _resolve_colors(overrides: dict | None) -> dict:
     return c
 
 
-def _head(extra_css: str = "") -> str:
-    return f"""<!DOCTYPE html>
-<html>
-<head>
-<meta charset="utf-8">
-{_FONTS}
-<style>
-{_BASE_CSS}
-{extra_css}
-</style>
-</head>
-<body>"""
+def _resolve_typography(overrides: dict | None) -> dict:
+    t = dict(_DEFAULT_TYPOGRAPHY)
+    if overrides:
+        t.update({k: v for k, v in overrides.items() if v is not None})
+    return t
+
+
+def _fonts_html(headline_font: str, body_font: str) -> str:
+    needed = {headline_font, body_font}
+    params = "&".join(
+        f"family={_FONT_GF_PARAMS[f]}"
+        for f in needed
+        if f in _FONT_GF_PARAMS
+    )
+    if not params:
+        return ""
+    url = f"https://fonts.googleapis.com/css2?{params}&display=swap"
+    return (
+        '<link rel="preconnect" href="https://fonts.googleapis.com">\n'
+        '<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>\n'
+        f'<link href="{url}" rel="stylesheet">'
+    )
+
+
+def _head(headline_font: str = "Source Serif 4", body_font: str = "Plus Jakarta Sans") -> str:
+    return (
+        f'<!DOCTYPE html><html><head><meta charset="utf-8">\n'
+        f'{_fonts_html(headline_font, body_font)}\n'
+        f'<style>{_BASE_CSS}</style>\n'
+        f'</head><body>'
+    )
 
 
 def _esc(text: str) -> str:
     return html_mod.escape(str(text))
 
 
+def _img_src(path_or_url: str) -> str:
+    """Convert a local file path to a data-URL; leave remote URLs untouched."""
+    if not path_or_url:
+        return ""
+    if path_or_url.startswith("http") or path_or_url.startswith("data:"):
+        return path_or_url
+    try:
+        p = Path(path_or_url)
+        if p.exists():
+            mt = mimetypes.guess_type(str(p))[0] or "image/jpeg"
+            return f"data:{mt};base64,{base64.b64encode(p.read_bytes()).decode()}"
+    except Exception:
+        pass
+    return path_or_url
+
+
 def _progress_bar(index: int, total: int, color: str) -> str:
     pct = round((index + 1) / total * 100, 2)
-    return f"""
-    <div style="
-        position: absolute;
-        bottom: 0; left: 0;
-        width: {pct}%;
-        height: 8px;
-        background: {color};
-    "></div>"""
+    return (
+        f'<div style="position:absolute;bottom:0;left:0;'
+        f'width:{pct}%;height:8px;background:{color};"></div>'
+    )
 
+# ─── Slide builders ───────────────────────────────────────────────────────────
 
-def build_cover_slide(title: str, cover_image: str | None, colors: dict) -> str:
-    cover_top_h = round(SLIDE_HEIGHT * 0.65)
-    cover_bot_h = SLIDE_HEIGHT - cover_top_h
+def build_cover_slide(title: str, cover_image: str | None, colors: dict, typography: dict) -> str:
+    hf  = _FONT_STACK.get(typography["headline_font"], "'Source Serif 4', serif")
+    hs  = typography["headline_size"]
+    top = round(SLIDE_HEIGHT * 0.65)
+    bot = SLIDE_HEIGHT - top
 
     if cover_image:
-        img_section = f"""
-        <div style="
-            width: {SLIDE_WIDTH}px;
-            height: {cover_top_h}px;
-            background: url('{cover_image}') center/cover no-repeat;
-            flex-shrink: 0;
-        "></div>"""
+        src = _img_src(cover_image)
+        img_css = f"background:url('{src}') center/cover no-repeat;"
     else:
-        img_section = f"""
-        <div style="
-            width: {SLIDE_WIDTH}px;
-            height: {cover_top_h}px;
-            background: {SLIDE_BG};
-            flex-shrink: 0;
-        "></div>"""
+        img_css = f"background:{colors['slide_bg']};"
 
-    return f"""{_head()}
-<div class="slide" style="display: flex; flex-direction: column; background: {COVER_BG};">
-    {img_section}
-    <div style="
-        width: {SLIDE_WIDTH}px;
-        height: {cover_bot_h}px;
-        background: {COVER_BG};
-        display: flex;
-        flex-direction: column;
-        align-items: center;
-        justify-content: center;
-        padding: 40px 80px;
-        flex-shrink: 0;
-    ">
-        <div style="
-            font-family: 'Source Serif 4', serif;
-            font-size: 40px;
-            font-weight: 400;
-            color: {colors['headline']};
-            text-align: center;
-            line-height: 1.3;
-            margin-bottom: 24px;
-        ">{_esc(title)}</div>
-        <div style="
-            width: 40px;
-            height: 4px;
-            background: {colors['progress_bar']};
-            border-radius: 2px;
-        "></div>
-    </div>
-</div>
-</body></html>"""
+    return (
+        f'{_head(typography["headline_font"], typography["body_font"])}\n'
+        f'<div class="slide" style="display:flex;flex-direction:column;background:{COVER_BG};">\n'
+        f'  <div style="width:{SLIDE_WIDTH}px;height:{top}px;flex-shrink:0;{img_css}"></div>\n'
+        f'  <div style="width:{SLIDE_WIDTH}px;height:{bot}px;background:{COVER_BG};display:flex;\n'
+        f'       flex-direction:column;align-items:center;justify-content:center;\n'
+        f'       padding:40px 80px;flex-shrink:0;">\n'
+        f'    <div style="font-family:{hf};font-size:{hs}px;font-weight:400;\n'
+        f'         color:{colors["headline"]};text-align:center;line-height:1.3;\n'
+        f'         margin-bottom:24px;">{_esc(title)}</div>\n'
+        f'    <div style="width:40px;height:4px;background:{colors["progress_bar"]};\n'
+        f'         border-radius:2px;"></div>\n'
+        f'  </div>\n'
+        f'</div>\n</body></html>'
+    )
 
 
 def build_content_slide(
@@ -134,101 +171,39 @@ def build_content_slide(
     index: int,
     total: int,
     colors: dict,
+    typography: dict,
+    slide_image: str | None = None,
 ) -> str:
+    hf  = _FONT_STACK.get(typography["headline_font"], "'Source Serif 4', serif")
+    bf  = _FONT_STACK.get(typography["body_font"],    "'Plus Jakarta Sans', sans-serif")
+    hs  = typography["headline_size"]
+    bs  = typography["body_size"]
     pad = 65
-    return f"""{_head()}
-<div class="slide" style="background: {colors['slide_bg']};">
-    <div style="
-        padding: 120px {pad}px 0 {pad}px;
-    ">
-        <div style="
-            font-family: 'Source Serif 4', serif;
-            font-size: 38px;
-            font-weight: 500;
-            color: {colors['headline']};
-            line-height: 1.3;
-            margin-bottom: 40px;
-        ">{_esc(headline)}</div>
-        <div style="
-            font-family: 'Plus Jakarta Sans', sans-serif;
-            font-size: 23px;
-            font-weight: 400;
-            color: {colors['body']};
-            line-height: 1.65;
-        ">{_esc(body)}</div>
-    </div>
-    {_progress_bar(index, total, colors['progress_bar'])}
-</div>
-</body></html>"""
 
+    img_html = ""
+    if slide_image:
+        src = _img_src(slide_image)
+        img_html = (
+            f'<div style="margin-top:28px;">'
+            f'<img src="{src}" style="width:100%;max-height:260px;'
+            f'object-fit:cover;border-radius:12px;display:block;"/>'
+            f'</div>'
+        )
 
-def build_cta_slide(index: int, total: int, colors: dict) -> str:
-    return f"""{_head()}
-<div class="slide" style="background: {colors['slide_bg']}; display: flex; flex-direction: column; align-items: center; justify-content: center;">
-    <div style="
-        display: flex;
-        flex-direction: column;
-        align-items: center;
-        text-align: center;
-        padding: 0 100px;
-        gap: 56px;
-    ">
-        <div style="
-            font-family: 'Source Serif 4', serif;
-            font-size: 32px;
-            font-weight: 400;
-            color: {colors['headline']};
-            line-height: 1.4;
-            max-width: 700px;
-        ">Read the full article (or listen to it) on our website</div>
-
-        <div style="display: flex; align-items: center; gap: 28px;">
-            <div style="
-                width: 0; height: 0;
-                border-top: 16px solid transparent;
-                border-bottom: 16px solid transparent;
-                border-left: 24px solid {ACCENT_BLUE};
-                opacity: 0.7;
-            "></div>
-            <div style="
-                background: #FFFFFF;
-                border-radius: 20px;
-                box-shadow: 0 4px 24px rgba(0,0,0,0.10);
-                padding: 28px 48px;
-                display: flex;
-                flex-direction: column;
-                align-items: center;
-                gap: 10px;
-            ">
-                <div style="font-size: 36px;">&#x1F50D;</div>
-                <div style="
-                    font-family: 'Plus Jakarta Sans', sans-serif;
-                    font-size: 22px;
-                    font-weight: 600;
-                    color: {colors['headline']};
-                ">ClearerThinking.org</div>
-            </div>
-            <div style="
-                width: 0; height: 0;
-                border-top: 16px solid transparent;
-                border-bottom: 16px solid transparent;
-                border-right: 24px solid {ACCENT_BLUE};
-                opacity: 0.7;
-            "></div>
-        </div>
-
-        <div style="
-            font-family: 'Plus Jakarta Sans', sans-serif;
-            font-size: 20px;
-            font-weight: 400;
-            color: {colors['body']};
-            font-style: italic;
-        ">www.clearerthinking.org/blog</div>
-    </div>
-
-    {_progress_bar(index, total, colors['progress_bar'])}
-</div>
-</body></html>"""
+    return (
+        f'{_head(typography["headline_font"], typography["body_font"])}\n'
+        f'<div class="slide" style="background:{colors["slide_bg"]};">\n'
+        f'  <div style="padding:100px {pad}px 0 {pad}px;">\n'
+        f'    <div style="font-family:{hf};font-size:{hs}px;font-weight:500;\n'
+        f'         color:{colors["headline"]};line-height:1.3;margin-bottom:32px;">'
+        f'{_esc(headline)}</div>\n'
+        f'    <div style="font-family:{bf};font-size:{bs}px;font-weight:400;\n'
+        f'         color:{colors["body"]};line-height:1.65;">{_esc(body)}</div>\n'
+        f'    {img_html}\n'
+        f'  </div>\n'
+        f'  {_progress_bar(index, total, colors["progress_bar"])}\n'
+        f'</div>\n</body></html>'
+    )
 
 
 def build_slides(
@@ -236,22 +211,18 @@ def build_slides(
     cover_image: str | None,
     takeaways: list[dict],
     colors: dict | None = None,
+    typography: dict | None = None,
 ) -> list[dict]:
-    """Build HTML for all slides.
+    """Build all slides.
 
-    takeaways: list of {headline, body} dicts.
-    colors: optional overrides for slide_bg, headline, body, progress_bar.
+    takeaways: list of {headline, body, slide_image?} dicts.
+    Returns a mix of HTML slides and a cta_image descriptor for the last slide.
     """
     c = _resolve_colors(colors)
+    t = _resolve_typography(typography)
     total = len(takeaways) + 2
 
-    slides = [
-        {
-            "type": "cover",
-            "index": 0,
-            "html": build_cover_slide(title, cover_image, c),
-        }
-    ]
+    slides = [{"type": "cover", "index": 0, "html": build_cover_slide(title, cover_image, c, t)}]
 
     for i, takeaway in enumerate(takeaways):
         slides.append({
@@ -263,13 +234,18 @@ def build_slides(
                 i + 1,
                 total,
                 c,
+                t,
+                takeaway.get("slide_image"),
             ),
         })
 
+    # CTA: fixed owl image rendered by Pillow, not Playwright
     slides.append({
-        "type": "cta",
+        "type": "cta_image",
         "index": total - 1,
-        "html": build_cta_slide(total - 1, total, c),
+        "html": None,
+        "cta_image_path": str(CTA_IMAGE_PATH),
+        "progress_bar_color": c["progress_bar"],
     })
 
     return slides
