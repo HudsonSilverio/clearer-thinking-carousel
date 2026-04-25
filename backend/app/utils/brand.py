@@ -69,9 +69,9 @@ class Fonts:
 
 
 class FontSizes:
-    COVER_TITLE   = 40
-    SLIDE_HEADLINE = 36
-    SLIDE_BODY    = 22
+    COVER_TITLE   = 42
+    SLIDE_HEADLINE = 42
+    SLIDE_BODY    = 28
     CTA_HEADING   = 30
     CTA_URL       = 20
 

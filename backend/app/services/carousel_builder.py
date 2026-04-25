@@ -38,8 +38,9 @@ _FONT_STACK = {
 _DEFAULT_TYPOGRAPHY = {
     "headline_font": "Source Serif 4",
     "body_font":     "Plus Jakarta Sans",
-    "headline_size": 32,
-    "body_size":     22,
+    "headline_size": 42,
+    "body_size":     28,
+    "text_align":    "left",
 }
 
 _DEFAULT_COLORS = {
@@ -178,7 +179,8 @@ def build_content_slide(
     bf  = _FONT_STACK.get(typography["body_font"],    "'Plus Jakarta Sans', sans-serif")
     hs  = typography["headline_size"]
     bs  = typography["body_size"]
-    pad = 65
+    ta  = typography.get("text_align", "left")
+    pad = 55
 
     img_html = ""
     if slide_image:
@@ -193,12 +195,14 @@ def build_content_slide(
     return (
         f'{_head(typography["headline_font"], typography["body_font"])}\n'
         f'<div class="slide" style="background:{colors["slide_bg"]};">\n'
-        f'  <div style="padding:100px {pad}px 0 {pad}px;">\n'
+        f'  <div style="padding:70px {pad}px 0 {pad}px;">\n'
         f'    <div style="font-family:{hf};font-size:{hs}px;font-weight:500;\n'
-        f'         color:{colors["headline"]};line-height:1.3;margin-bottom:32px;">'
+        f'         color:{colors["headline"]};line-height:1.25;margin-bottom:28px;\n'
+        f'         text-align:{ta};">'
         f'{_esc(headline)}</div>\n'
         f'    <div style="font-family:{bf};font-size:{bs}px;font-weight:400;\n'
-        f'         color:{colors["body"]};line-height:1.65;">{_esc(body)}</div>\n'
+        f'         color:{colors["body"]};line-height:1.45;\n'
+        f'         text-align:{ta};">{_esc(body)}</div>\n'
         f'    {img_html}\n'
         f'  </div>\n'
         f'  {_progress_bar(index, total, colors["progress_bar"])}\n'

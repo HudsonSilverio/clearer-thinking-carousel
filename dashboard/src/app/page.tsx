@@ -4,7 +4,7 @@ import { useState, useRef, useCallback } from "react";
 import {
   ChevronLeft, ChevronRight, Download, RotateCcw,
   Loader2, AlertCircle, Sparkles, Copy, Check,
-  RefreshCw, X, Settings, Type,
+  RefreshCw, X, Settings, Type, AlignLeft, AlignCenter, AlignRight,
 } from "lucide-react";
 
 const API = "http://localhost:8001";
@@ -31,6 +31,7 @@ interface SlideTypography {
   bodyFont: string;
   headlineSize: number;
   bodySize: number;
+  textAlign: "left" | "center" | "right";
 }
 
 interface CarouselState {
@@ -57,8 +58,9 @@ const DEFAULT_COLORS: SlideColors = {
 const DEFAULT_TYPOGRAPHY: SlideTypography = {
   headlineFont: "Source Serif 4",
   bodyFont: "Plus Jakarta Sans",
-  headlineSize: 32,
-  bodySize: 22,
+  headlineSize: 42,
+  bodySize: 28,
+  textAlign: "left",
 };
 
 const FONT_OPTIONS = [
@@ -78,10 +80,16 @@ const FONT_CSS: Record<string, string> = {
 };
 
 const PHASE_LABELS = {
-  scraping:   "Lendo o artigo...",
-  generating: "Gerando conteúdo com IA...",
-  rendering:  "Construindo os slides...",
+  scraping:   "Reading the article...",
+  generating: "Generating AI content...",
+  rendering:  "Building slides...",
 };
+
+const ALIGN_OPTIONS: { value: "left" | "center" | "right"; Icon: typeof AlignLeft }[] = [
+  { value: "left",   Icon: AlignLeft },
+  { value: "center", Icon: AlignCenter },
+  { value: "right",  Icon: AlignRight },
+];
 
 // ─── Slide components ─────────────────────────────────────────────────────────
 
@@ -109,7 +117,7 @@ function EditableDiv({ value, onChange, style }: {
       suppressContentEditableWarning
       onBlur={(e) => onChange(e.currentTarget.textContent || "")}
       dangerouslySetInnerHTML={{ __html: value }}
-      title="Clique para editar"
+      title="Click to edit"
       style={{ outline: "none", cursor: "text", borderRadius: 4, transition: "background 0.15s", ...style }}
       onFocus={(e) => { (e.currentTarget as HTMLElement).style.background = "rgba(232,168,56,0.08)"; }}
       onBlurCapture={(e) => { (e.currentTarget as HTMLElement).style.background = ""; }}
@@ -145,7 +153,7 @@ function CoverSlide({ title, coverImage, colors, typography, onTitleChange, onIm
           onClick={() => setShowImgInput(v => !v)}
           style={{ position: "absolute", top: 20, right: 20, background: "rgba(0,0,0,0.5)", color: "#fff", fontSize: 18, padding: "8px 18px", borderRadius: 8, cursor: "pointer", fontFamily: "var(--font-dm)" }}
         >
-          Trocar imagem
+          Change image
         </div>
         {showImgInput && (
           <div style={{ position: "absolute", top: 64, right: 20, background: "#fff", borderRadius: 12, padding: 16, boxShadow: "0 4px 20px rgba(0,0,0,0.18)", display: "flex", flexDirection: "column", gap: 10, zIndex: 10, minWidth: 340 }}>
@@ -162,9 +170,9 @@ function CoverSlide({ title, coverImage, colors, typography, onTitleChange, onIm
                   onClick={() => fileInputRef.current?.click()}
                   style={{ background: "#E8712A", color: "#fff", border: "none", borderRadius: 8, padding: "8px 16px", cursor: "pointer", fontSize: 16, fontWeight: 600 }}
                 >
-                  Upload do computador
+                  Upload from computer
                 </button>
-                <div style={{ textAlign: "center", fontSize: 13, color: "#aaa" }}>ou cole uma URL</div>
+                <div style={{ textAlign: "center", fontSize: 13, color: "#aaa" }}>or paste a URL</div>
               </>
             )}
             <div style={{ display: "flex", gap: 8 }}>
@@ -172,7 +180,7 @@ function CoverSlide({ title, coverImage, colors, typography, onTitleChange, onIm
                 type="url"
                 value={imgUrl}
                 onChange={e => setImgUrl(e.target.value)}
-                placeholder="URL da imagem..."
+                placeholder="Image URL..."
                 style={{ border: "1px solid #ddd", borderRadius: 8, padding: "6px 12px", fontSize: 14, flex: 1, outline: "none" }}
               />
               <button
@@ -187,7 +195,7 @@ function CoverSlide({ title, coverImage, colors, typography, onTitleChange, onIm
         <EditableDiv
           value={title}
           onChange={onTitleChange}
-          style={{ fontFamily: hf, fontSize: typography.headlineSize, fontWeight: 400, color: colors.headline, textAlign: "center", lineHeight: 1.3, marginBottom: 24, width: "100%" }}
+          style={{ fontFamily: hf, fontSize: typography.headlineSize, fontWeight: 400, color: colors.headline, textAlign: "center", lineHeight: 1.25, marginBottom: 24, width: "100%" }}
         />
         <div style={{ width: 40, height: 4, background: colors.progressBar, borderRadius: 2 }} />
       </div>
@@ -208,19 +216,20 @@ function ContentSlide({ headline, body, index, total, colors, typography, slideI
   const fileInputRef = useRef<HTMLInputElement>(null);
   const hf = FONT_CSS[typography.headlineFont] || "'Source Serif 4', serif";
   const bf = FONT_CSS[typography.bodyFont] || "'Plus Jakarta Sans', sans-serif";
+  const ta = typography.textAlign;
 
   return (
     <div style={{ width: SLIDE_FULL, height: SLIDE_FULL, position: "relative", background: colors.slideBg }}>
-      <div style={{ padding: "100px 65px 0 65px" }}>
+      <div style={{ padding: "70px 55px 0 55px" }}>
         <EditableDiv
           value={headline}
           onChange={onHeadlineChange}
-          style={{ fontFamily: hf, fontSize: typography.headlineSize, fontWeight: 500, color: colors.headline, lineHeight: 1.3, marginBottom: 32 }}
+          style={{ fontFamily: hf, fontSize: typography.headlineSize, fontWeight: 500, color: colors.headline, lineHeight: 1.25, marginBottom: 28, textAlign: ta }}
         />
         <EditableDiv
           value={body}
           onChange={onBodyChange}
-          style={{ fontFamily: bf, fontSize: typography.bodySize, fontWeight: 400, color: colors.body, lineHeight: 1.65 }}
+          style={{ fontFamily: bf, fontSize: typography.bodySize, fontWeight: 400, color: colors.body, lineHeight: 1.45, textAlign: ta }}
         />
         {slideImage && (
           <div style={{ marginTop: 28 }}>
@@ -243,14 +252,14 @@ function ContentSlide({ headline, body, index, total, colors, typography, slideI
                   onClick={() => fileInputRef.current?.click()}
                   style={{ fontSize: 18, padding: "8px 20px", background: "rgba(255,255,255,0.85)", border: "1px dashed #ccc", borderRadius: 10, cursor: "pointer", color: "#777", fontFamily: "var(--font-dm)" }}
                 >
-                  + Adicionar imagem
+                  + Add image
                 </button>
               ) : (
                 <button
                   onClick={onImageRemove}
                   style={{ fontSize: 18, padding: "8px 20px", background: "rgba(254,226,226,0.9)", border: "1px solid #fca5a5", borderRadius: 10, cursor: "pointer", color: "#dc2626", fontFamily: "var(--font-dm)" }}
                 >
-                  × Remover imagem
+                  × Remove image
                 </button>
               )}
             </div>
@@ -297,7 +306,7 @@ function CopyButton({ text }: { text: string }) {
   return (
     <button onClick={copy} style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 12, color: "#2B5EA7", background: "none", border: "none", cursor: "pointer", padding: "2px 6px" }}>
       {copied ? <Check size={13} /> : <Copy size={13} />}
-      {copied ? "Copiado!" : "Copiar"}
+      {copied ? "Copied!" : "Copy"}
     </button>
   );
 }
@@ -342,7 +351,7 @@ export default function Home() {
       clearTimeout(t1); clearTimeout(t2);
       if (!res.ok) {
         const b = await res.json().catch(() => ({}));
-        throw new Error(b.detail ?? `Erro ${res.status}`);
+        throw new Error(b.detail ?? `Error ${res.status}`);
       }
       const data = await res.json();
       setCarousel({
@@ -359,7 +368,7 @@ export default function Home() {
       setPhase("done");
     } catch (e: unknown) {
       clearTimeout(t1); clearTimeout(t2);
-      setError(e instanceof Error ? e.message : "Erro inesperado.");
+      setError(e instanceof Error ? e.message : "Unexpected error.");
       setPhase("error");
     }
   }
@@ -404,7 +413,7 @@ export default function Home() {
       const data = await res.json();
       setCarousel(c => c ? { ...c, coverImage: `${API}${data.url}`, coverImagePath: data.path } : c);
     } catch {
-      alert("Erro ao fazer upload da imagem.");
+      alert("Image upload failed.");
     }
   }
 
@@ -422,7 +431,7 @@ export default function Home() {
         return { ...c, takeaways: t };
       });
     } catch {
-      alert("Erro ao fazer upload da imagem.");
+      alert("Image upload failed.");
     }
   }
 
@@ -483,6 +492,7 @@ export default function Home() {
           body_font:     carousel.typography.bodyFont,
           headline_size: carousel.typography.headlineSize,
           body_size:     carousel.typography.bodySize,
+          text_align:    carousel.typography.textAlign,
         },
       };
       const res = await fetch(`${API}/api/carousel/render-custom`, {
@@ -490,14 +500,14 @@ export default function Home() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(body),
       });
-      if (!res.ok) throw new Error("Erro ao gerar arquivo");
+      if (!res.ok) throw new Error("Failed to generate file");
       const data = await res.json();
       const fileUrl = format === "zip"
         ? `${API}/api/carousel/${data.carousel_id}/zip`
         : `${API}/api/carousel/${data.carousel_id}/pdf`;
       window.open(fileUrl, "_blank");
     } catch {
-      alert("Erro ao baixar. Tente novamente.");
+      alert("Download failed. Please try again.");
     } finally {
       setDownloading(false);
     }
@@ -597,8 +607,8 @@ export default function Home() {
         {phase !== "done" && (
           <div style={{ width: "100%", maxWidth: 680 }}>
             <div style={{ background: "#fff", borderRadius: 20, border: "1px solid #eee", boxShadow: "0 1px 4px rgba(0,0,0,0.06)", padding: 36 }}>
-              <h1 style={{ fontFamily: "var(--font-jakarta)", fontSize: 22, fontWeight: 800, color: "#1A1A2E", marginBottom: 6 }}>Gerar carousel do Instagram</h1>
-              <p style={{ fontSize: 14, color: "#737373", marginBottom: 24 }}>Cole o link de um post do blog Clearer Thinking para criar um carousel em segundos.</p>
+              <h1 style={{ fontFamily: "var(--font-jakarta)", fontSize: 22, fontWeight: 800, color: "#1A1A2E", marginBottom: 6 }}>Generate Instagram Carousel</h1>
+              <p style={{ fontSize: 14, color: "#737373", marginBottom: 24 }}>Paste a Clearer Thinking blog post link to create a carousel in seconds.</p>
               <div style={{ display: "flex", gap: 10 }}>
                 <input
                   ref={inputRef}
@@ -616,7 +626,7 @@ export default function Home() {
                   style={{ display: "flex", alignItems: "center", gap: 8, borderRadius: 12, padding: "12px 24px", background: "#E8712A", color: "#fff", border: "none", fontSize: 14, fontWeight: 600, cursor: isLoading || !url.trim() ? "not-allowed" : "pointer", opacity: isLoading || !url.trim() ? 0.6 : 1, fontFamily: "var(--font-jakarta)" }}
                 >
                   {isLoading ? <Loader2 size={15} className="animate-spin" /> : <Sparkles size={15} />}
-                  {isLoading ? "Gerando..." : "Gerar Carousel"}
+                  {isLoading ? "Generating..." : "Generate Carousel"}
                 </button>
               </div>
               {phase === "error" && error && (
@@ -644,7 +654,7 @@ export default function Home() {
                     );
                   })}
                 </div>
-                <p style={{ fontSize: 12, color: "#999" }}>Isso costuma levar entre 30 e 60 segundos.</p>
+                <p style={{ fontSize: 12, color: "#999" }}>This usually takes 30 to 60 seconds.</p>
               </div>
             )}
           </div>
@@ -657,15 +667,15 @@ export default function Home() {
             {/* Top bar */}
             <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 16 }}>
               <div>
-                <p style={{ fontSize: 11, fontWeight: 700, letterSpacing: 2, textTransform: "uppercase", color: "#E8712A", marginBottom: 4 }}>Carousel gerado</p>
+                <p style={{ fontSize: 11, fontWeight: 700, letterSpacing: 2, textTransform: "uppercase", color: "#E8712A", marginBottom: 4 }}>Carousel ready</p>
                 <h2 style={{ fontFamily: "var(--font-jakarta)", fontSize: 20, fontWeight: 800, color: "#1A1A2E" }}>{carousel.title}</h2>
-                <p style={{ fontSize: 13, color: "#999", marginTop: 2 }}>{totalSlides} slides · clique nos textos para editar</p>
+                <p style={{ fontSize: 13, color: "#999", marginTop: 2 }}>{totalSlides} slides · click on text to edit</p>
               </div>
               <button
                 onClick={reset}
                 style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 13, fontWeight: 500, padding: "8px 16px", borderRadius: 12, border: "1px solid #ddd", background: "#fff", cursor: "pointer", color: "#303030", flexShrink: 0 }}
               >
-                <RotateCcw size={13} /> Novo carousel
+                <RotateCcw size={13} /> New Carousel
               </button>
             </div>
 
@@ -718,15 +728,15 @@ export default function Home() {
                     onClick={() => setShowColors(v => !v)}
                     style={{ width: "100%", display: "flex", alignItems: "center", justifyContent: "space-between", padding: "14px 18px", background: "none", border: "none", cursor: "pointer" }}
                   >
-                    <span style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, fontWeight: 600, color: "#1A1A2E" }}><Settings size={14} /> Cores dos slides</span>
+                    <span style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, fontWeight: 600, color: "#1A1A2E" }}><Settings size={14} /> Slide Colors</span>
                     <span style={{ fontSize: 12, color: "#999" }}>{showColors ? "▲" : "▼"}</span>
                   </button>
                   {showColors && (
                     <div style={{ padding: "4px 18px 18px", display: "flex", flexDirection: "column", gap: 14, borderTop: "1px solid #f0f0f0" }}>
-                      <ColorField label="Fundo dos slides" value={carousel.colors.slideBg} onChange={v => updateColor("slideBg", v)} />
-                      <ColorField label="Cor do título" value={carousel.colors.headline} onChange={v => updateColor("headline", v)} />
-                      <ColorField label="Cor do texto" value={carousel.colors.body} onChange={v => updateColor("body", v)} />
-                      <ColorField label="Barra de progresso" value={carousel.colors.progressBar} onChange={v => updateColor("progressBar", v)} />
+                      <ColorField label="Slide background" value={carousel.colors.slideBg} onChange={v => updateColor("slideBg", v)} />
+                      <ColorField label="Headline color" value={carousel.colors.headline} onChange={v => updateColor("headline", v)} />
+                      <ColorField label="Body color" value={carousel.colors.body} onChange={v => updateColor("body", v)} />
+                      <ColorField label="Progress bar" value={carousel.colors.progressBar} onChange={v => updateColor("progressBar", v)} />
                     </div>
                   )}
                 </div>
@@ -737,13 +747,13 @@ export default function Home() {
                     onClick={() => setShowTypography(v => !v)}
                     style={{ width: "100%", display: "flex", alignItems: "center", justifyContent: "space-between", padding: "14px 18px", background: "none", border: "none", cursor: "pointer" }}
                   >
-                    <span style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, fontWeight: 600, color: "#1A1A2E" }}><Type size={14} /> Tipografia</span>
+                    <span style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, fontWeight: 600, color: "#1A1A2E" }}><Type size={14} /> Typography</span>
                     <span style={{ fontSize: 12, color: "#999" }}>{showTypography ? "▲" : "▼"}</span>
                   </button>
                   {showTypography && (
                     <div style={{ padding: "4px 18px 18px", display: "flex", flexDirection: "column", gap: 16, borderTop: "1px solid #f0f0f0" }}>
                       <div>
-                        <div style={{ fontSize: 13, color: "#555", marginBottom: 6 }}>Fonte do título</div>
+                        <div style={{ fontSize: 13, color: "#555", marginBottom: 6 }}>Headline font</div>
                         <select
                           value={carousel.typography.headlineFont}
                           onChange={e => updateTypography("headlineFont", e.target.value)}
@@ -754,18 +764,18 @@ export default function Home() {
                       </div>
                       <div>
                         <div style={{ fontSize: 13, color: "#555", display: "flex", justifyContent: "space-between", marginBottom: 6 }}>
-                          <span>Tamanho do título</span>
+                          <span>Headline size</span>
                           <span style={{ fontWeight: 600, color: "#1A1A2E" }}>{carousel.typography.headlineSize}px</span>
                         </div>
                         <input
-                          type="range" min={24} max={48}
+                          type="range" min={28} max={56}
                           value={carousel.typography.headlineSize}
                           onChange={e => updateTypography("headlineSize", +e.target.value)}
                           style={{ width: "100%", accentColor: "#E8712A" }}
                         />
                       </div>
                       <div>
-                        <div style={{ fontSize: 13, color: "#555", marginBottom: 6 }}>Fonte do texto</div>
+                        <div style={{ fontSize: 13, color: "#555", marginBottom: 6 }}>Body font</div>
                         <select
                           value={carousel.typography.bodyFont}
                           onChange={e => updateTypography("bodyFont", e.target.value)}
@@ -776,15 +786,37 @@ export default function Home() {
                       </div>
                       <div>
                         <div style={{ fontSize: 13, color: "#555", display: "flex", justifyContent: "space-between", marginBottom: 6 }}>
-                          <span>Tamanho do texto</span>
+                          <span>Body size</span>
                           <span style={{ fontWeight: 600, color: "#1A1A2E" }}>{carousel.typography.bodySize}px</span>
                         </div>
                         <input
-                          type="range" min={16} max={28}
+                          type="range" min={18} max={36}
                           value={carousel.typography.bodySize}
                           onChange={e => updateTypography("bodySize", +e.target.value)}
                           style={{ width: "100%", accentColor: "#E8712A" }}
                         />
+                      </div>
+                      <div>
+                        <div style={{ fontSize: 13, color: "#555", marginBottom: 8 }}>Text alignment</div>
+                        <div style={{ display: "flex", gap: 6 }}>
+                          {ALIGN_OPTIONS.map(({ value, Icon }) => (
+                            <button
+                              key={value}
+                              onClick={() => updateTypography("textAlign", value)}
+                              style={{
+                                flex: 1, display: "flex", alignItems: "center", justifyContent: "center",
+                                padding: "9px 0", border: "1px solid",
+                                borderColor: carousel.typography.textAlign === value ? "#E8712A" : "#ddd",
+                                borderRadius: 8,
+                                background: carousel.typography.textAlign === value ? "#FFF5EE" : "#fff",
+                                cursor: "pointer",
+                                color: carousel.typography.textAlign === value ? "#E8712A" : "#888",
+                              }}
+                            >
+                              <Icon size={16} />
+                            </button>
+                          ))}
+                        </div>
                       </div>
                     </div>
                   )}
@@ -793,7 +825,7 @@ export default function Home() {
                 {/* Caption */}
                 <div style={{ background: "#fff", borderRadius: 16, border: "1px solid #eee", padding: 18 }}>
                   <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
-                    <span style={{ fontSize: 13, fontWeight: 600, color: "#1A1A2E" }}>Caption do Instagram</span>
+                    <span style={{ fontSize: 13, fontWeight: 600, color: "#1A1A2E" }}>Instagram Caption</span>
                     <div style={{ display: "flex", gap: 8 }}>
                       <CopyButton text={carousel.caption} />
                       <button
@@ -802,7 +834,7 @@ export default function Home() {
                         style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 12, color: "#2B5EA7", background: "none", border: "none", cursor: "pointer" }}
                       >
                         <RefreshCw size={13} className={regenerating ? "animate-spin" : ""} />
-                        Regerar
+                        Regenerate
                       </button>
                     </div>
                   </div>
@@ -812,7 +844,7 @@ export default function Home() {
                     rows={4}
                     style={{ width: "100%", fontSize: 13, color: "#303030", border: "1px solid #e8e8e8", borderRadius: 10, padding: "10px 12px", resize: "vertical", outline: "none", lineHeight: 1.6, fontFamily: "var(--font-dm)" }}
                   />
-                  <p style={{ fontSize: 11, color: "#aaa", marginTop: 4 }}>{carousel.caption.length}/200 caracteres</p>
+                  <p style={{ fontSize: 11, color: "#aaa", marginTop: 4 }}>{carousel.caption.length}/200 characters</p>
                 </div>
 
                 {/* Hashtags */}
@@ -827,7 +859,7 @@ export default function Home() {
                         style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 12, color: "#2B5EA7", background: "none", border: "none", cursor: "pointer" }}
                       >
                         <RefreshCw size={13} className={regenerating ? "animate-spin" : ""} />
-                        Regerar
+                        Regenerate
                       </button>
                     </div>
                   </div>
@@ -846,10 +878,10 @@ export default function Home() {
                       value={newHashtag}
                       onChange={e => setNewHashtag(e.target.value)}
                       onKeyDown={e => e.key === "Enter" && addHashtag()}
-                      placeholder="#novahashtag"
+                      placeholder="#newhashtag"
                       style={{ flex: 1, fontSize: 12, border: "1px solid #e8e8e8", borderRadius: 8, padding: "6px 10px", outline: "none" }}
                     />
-                    <button onClick={addHashtag} style={{ fontSize: 12, padding: "6px 14px", background: "#E8712A", color: "#fff", border: "none", borderRadius: 8, cursor: "pointer" }}>Adicionar</button>
+                    <button onClick={addHashtag} style={{ fontSize: 12, padding: "6px 14px", background: "#E8712A", color: "#fff", border: "none", borderRadius: 8, cursor: "pointer" }}>Add</button>
                   </div>
                 </div>
 
@@ -861,7 +893,7 @@ export default function Home() {
                     style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", gap: 8, padding: "13px 0", borderRadius: 14, background: "#E8712A", color: "#fff", border: "none", fontSize: 14, fontWeight: 600, cursor: downloading ? "not-allowed" : "pointer", opacity: downloading ? 0.7 : 1, fontFamily: "var(--font-jakarta)" }}
                   >
                     {downloading ? <Loader2 size={15} className="animate-spin" /> : <Download size={15} />}
-                    {downloading ? "Gerando..." : "Baixar PNGs (ZIP)"}
+                    {downloading ? "Generating..." : "Download PNGs (ZIP)"}
                   </button>
                   <button
                     onClick={() => download("pdf")}
@@ -869,7 +901,7 @@ export default function Home() {
                     style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", gap: 8, padding: "13px 0", borderRadius: 14, background: "#2B5EA7", color: "#fff", border: "none", fontSize: 14, fontWeight: 600, cursor: downloading ? "not-allowed" : "pointer", opacity: downloading ? 0.7 : 1, fontFamily: "var(--font-jakarta)" }}
                   >
                     {downloading ? <Loader2 size={15} className="animate-spin" /> : <Download size={15} />}
-                    {downloading ? "Gerando..." : "Baixar PDF com edições"}
+                    {downloading ? "Generating..." : "Download PDF with edits"}
                   </button>
                 </div>
               </div>
@@ -879,7 +911,7 @@ export default function Home() {
       </main>
 
       <footer style={{ padding: "16px 0", textAlign: "center", fontSize: 12, color: "#999" }}>
-        Clearer Thinking Carousel Generator · uso interno
+        Clearer Thinking Carousel Generator · internal use
       </footer>
     </div>
   );

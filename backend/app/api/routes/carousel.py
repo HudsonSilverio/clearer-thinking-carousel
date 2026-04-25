@@ -35,8 +35,9 @@ class ColorsInput(BaseModel):
 class TypographyInput(BaseModel):
     headline_font: str = "Source Serif 4"
     body_font: str = "Plus Jakarta Sans"
-    headline_size: int = 32
-    body_size: int = 22
+    headline_size: int = 42
+    body_size: int = 28
+    text_align: str = "left"
 
 
 class RenderCustomRequest(BaseModel):
@@ -114,6 +115,7 @@ async def render_custom(body: RenderCustomRequest):
         "body_font":     body.typography.body_font,
         "headline_size": body.typography.headline_size,
         "body_size":     body.typography.body_size,
+        "text_align":    body.typography.text_align,
     }
 
     slides = build_slides(
