@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef, useCallback } from "react";
+import { useState, useRef, useCallback, useEffect } from "react";
 import {
   ChevronLeft, ChevronRight, Download, RotateCcw,
   Loader2, AlertCircle, Sparkles, Copy, Check,
@@ -111,16 +111,39 @@ function EditableDiv({ value, onChange, style }: {
   onChange: (v: string) => void;
   style?: React.CSSProperties;
 }) {
+  const ref = useRef<HTMLDivElement>(null);
+  const focused = useRef(false);
+
+  // Set content on mount
+  useEffect(() => {
+    if (ref.current) ref.current.textContent = value;
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Sync external value changes only when not being edited (prevents cursor jump)
+  useEffect(() => {
+    if (ref.current && !focused.current && ref.current.textContent !== value) {
+      ref.current.textContent = value;
+    }
+  });
+
   return (
     <div
+      ref={ref}
       contentEditable
       suppressContentEditableWarning
-      onBlur={(e) => onChange(e.currentTarget.textContent || "")}
-      dangerouslySetInnerHTML={{ __html: value }}
+      onFocus={(e) => {
+        focused.current = true;
+        (e.currentTarget as HTMLElement).style.background = "rgba(232,168,56,0.08)";
+      }}
+      onBlur={(e) => {
+        focused.current = false;
+        (e.currentTarget as HTMLElement).style.background = "";
+        onChange(e.currentTarget.textContent || "");
+      }}
+      onInput={(e) => onChange((e.currentTarget as HTMLElement).textContent || "")}
       title="Click to edit"
-      style={{ outline: "none", cursor: "text", borderRadius: 4, transition: "background 0.15s", ...style }}
-      onFocus={(e) => { (e.currentTarget as HTMLElement).style.background = "rgba(232,168,56,0.08)"; }}
-      onBlurCapture={(e) => { (e.currentTarget as HTMLElement).style.background = ""; }}
+      style={{ outline: "none", cursor: "text", borderRadius: 4, ...style }}
     />
   );
 }
@@ -513,6 +536,54 @@ export default function Home() {
     }
   }
 
+  // ── Download PPTX (Google Slides) ──────────────────────────────────────────
+
+  async function downloadPptx() {
+    if (!carousel) return;
+    setDownloading(true);
+    try {
+      const body = {
+        title: carousel.title,
+        cover_image: carousel.coverImagePath ?? carousel.coverImage,
+        takeaways: carousel.takeaways.map(t => ({
+          headline: t.headline,
+          body: t.body,
+          slide_image: t.slideImagePath ?? t.slideImageUrl ?? null,
+        })),
+        colors: {
+          slide_bg:     carousel.colors.slideBg,
+          headline:     carousel.colors.headline,
+          body:         carousel.colors.body,
+          progress_bar: carousel.colors.progressBar,
+        },
+        typography: {
+          headline_font: carousel.typography.headlineFont,
+          body_font:     carousel.typography.bodyFont,
+          headline_size: carousel.typography.headlineSize,
+          body_size:     carousel.typography.bodySize,
+          text_align:    carousel.typography.textAlign,
+        },
+      };
+      const res = await fetch(`${API}/api/carousel/render-pptx`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+      if (!res.ok) throw new Error();
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `carousel_${carousel.id}.pptx`;
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch {
+      alert("PPTX export failed. Please try again.");
+    } finally {
+      setDownloading(false);
+    }
+  }
+
   // ── Slide rendering logic ───────────────────────────────────────────────────
 
   function renderCurrentSlide() {
@@ -768,7 +839,7 @@ export default function Home() {
                           <span style={{ fontWeight: 600, color: "#1A1A2E" }}>{carousel.typography.headlineSize}px</span>
                         </div>
                         <input
-                          type="range" min={28} max={56}
+                          type="range" min={28} max={168}
                           value={carousel.typography.headlineSize}
                           onChange={e => updateTypography("headlineSize", +e.target.value)}
                           style={{ width: "100%", accentColor: "#E8712A" }}
@@ -790,7 +861,7 @@ export default function Home() {
                           <span style={{ fontWeight: 600, color: "#1A1A2E" }}>{carousel.typography.bodySize}px</span>
                         </div>
                         <input
-                          type="range" min={18} max={36}
+                          type="range" min={18} max={108}
                           value={carousel.typography.bodySize}
                           onChange={e => updateTypography("bodySize", +e.target.value)}
                           style={{ width: "100%", accentColor: "#E8712A" }}
@@ -904,6 +975,14 @@ export default function Home() {
                     {downloading ? "Generating..." : "Download PDF with edits"}
                   </button>
                 </div>
+                <button
+                  onClick={downloadPptx}
+                  disabled={downloading}
+                  style={{ width: "100%", display: "flex", alignItems: "center", justifyContent: "center", gap: 8, padding: "13px 0", borderRadius: 14, background: "#1A1A2E", color: "#fff", border: "none", fontSize: 14, fontWeight: 600, cursor: downloading ? "not-allowed" : "pointer", opacity: downloading ? 0.7 : 1, fontFamily: "var(--font-jakarta)" }}
+                >
+                  {downloading ? <Loader2 size={15} className="animate-spin" /> : <Download size={15} />}
+                  {downloading ? "Generating..." : "Download for Google Slides (.pptx)"}
+                </button>
               </div>
             </div>
           </div>

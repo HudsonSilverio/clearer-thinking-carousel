@@ -1,19 +1,66 @@
+import base64
 import io
 import uuid
 import zipfile
+from pathlib import Path
+
+import httpx
 from fastapi import APIRouter, HTTPException
 from fastapi.responses import FileResponse, StreamingResponse
 from pydantic import BaseModel, HttpUrl
 
 from app.services.scraper import scrape_post
 from app.services.ai_generator import generate_content
-from app.services.carousel_builder import build_slides
-from app.services.image_renderer import render_slides
+from app.services.carousel_builder import build_slides, CTA_IMAGE_PATH
+from app.services.image_renderer import render_slides, OUTPUT_DIR
 
 router = APIRouter(prefix="/carousel", tags=["carousel"])
 
 _store: dict[str, dict] = {}
 
+
+# ─── Helper: fetch a remote image and return base64 data-URL ─────────────────
+
+async def _to_data_url(url: str) -> str:
+    """Convert a remote image URL to a base64 data-URL for reliable Playwright rendering."""
+    if not url or not url.startswith("http"):
+        return url
+    try:
+        async with httpx.AsyncClient(timeout=12.0, follow_redirects=True) as client:
+            r = await client.get(url)
+            if r.status_code == 200:
+                ct = r.headers.get("content-type", "image/jpeg").split(";")[0].strip()
+                b64 = base64.b64encode(r.content).decode()
+                return f"data:{ct};base64,{b64}"
+    except Exception:
+        pass
+    return url
+
+
+async def _fetch_bytes(url_or_path: str) -> bytes | None:
+    """Fetch image bytes from a URL or local path (handles data: URLs too)."""
+    if not url_or_path:
+        return None
+    if url_or_path.startswith("data:"):
+        _, data = url_or_path.split(",", 1)
+        try:
+            return base64.b64decode(data)
+        except Exception:
+            return None
+    if url_or_path.startswith("http"):
+        try:
+            async with httpx.AsyncClient(timeout=12.0, follow_redirects=True) as client:
+                r = await client.get(url_or_path)
+                if r.status_code == 200:
+                    return r.content
+        except Exception:
+            pass
+        return None
+    p = Path(url_or_path)
+    return p.read_bytes() if p.exists() else None
+
+
+# ─── Models ──────────────────────────────────────────────────────────────────
 
 class GenerateRequest(BaseModel):
     url: HttpUrl
@@ -48,6 +95,8 @@ class RenderCustomRequest(BaseModel):
     typography: TypographyInput = TypographyInput()
 
 
+# ─── Endpoints ───────────────────────────────────────────────────────────────
+
 @router.post("/generate")
 async def generate_carousel(body: GenerateRequest):
     url = str(body.url)
@@ -69,13 +118,13 @@ async def generate_carousel(body: GenerateRequest):
     takeaways = scraped["takeaways"]
     cover_image = scraped["cover_image"]
 
+    # Prefetch cover image as base64 so Playwright renders it reliably
+    if cover_image:
+        cover_image = await _to_data_url(cover_image)
+
     ai = await generate_content(title, takeaways)
 
-    slides = build_slides(
-        title=title,
-        cover_image=cover_image,
-        takeaways=takeaways,
-    )
+    slides = build_slides(title=title, cover_image=cover_image, takeaways=takeaways)
 
     carousel_id = uuid.uuid4().hex
     rendered = await render_slides(slides, carousel_id)
@@ -84,7 +133,7 @@ async def generate_carousel(body: GenerateRequest):
         "carousel_id": carousel_id,
         "url": url,
         "title": title,
-        "cover_image": cover_image,
+        "cover_image": scraped["cover_image"],   # return original URL to frontend
         "slide_count": rendered["slide_count"],
         "takeaways": takeaways,
         "caption": ai["caption"],
@@ -100,14 +149,10 @@ async def generate_carousel(body: GenerateRequest):
 @router.post("/render-custom")
 async def render_custom(body: RenderCustomRequest):
     """Re-render a carousel with edited content, colors, and typography."""
-    takeaways = [
-        {"headline": t.headline, "body": t.body, "slide_image": t.slide_image}
-        for t in body.takeaways
-    ]
     colors = {
-        "slide_bg": body.colors.slide_bg,
-        "headline": body.colors.headline,
-        "body": body.colors.body,
+        "slide_bg":     body.colors.slide_bg,
+        "headline":     body.colors.headline,
+        "body":         body.colors.body,
         "progress_bar": body.colors.progress_bar,
     }
     typography = {
@@ -118,9 +163,22 @@ async def render_custom(body: RenderCustomRequest):
         "text_align":    body.typography.text_align,
     }
 
+    # Prefetch cover image for Playwright reliability
+    cover_image = body.cover_image
+    if cover_image and cover_image.startswith("http"):
+        cover_image = await _to_data_url(cover_image)
+
+    # Prefetch slide images
+    takeaways = []
+    for t in body.takeaways:
+        slide_image = t.slide_image
+        if slide_image and slide_image.startswith("http"):
+            slide_image = await _to_data_url(slide_image)
+        takeaways.append({"headline": t.headline, "body": t.body, "slide_image": slide_image})
+
     slides = build_slides(
         title=body.title,
-        cover_image=body.cover_image,
+        cover_image=cover_image,
         takeaways=takeaways,
         colors=colors,
         typography=typography,
@@ -135,9 +193,65 @@ async def render_custom(body: RenderCustomRequest):
         "slide_images": rendered["png_paths"],
         "pdf_path": rendered["pdf_path"],
     }
-    _store[carousel_id] = {**metadata, "title": body.title, "cover_image": body.cover_image}
+    _store[carousel_id] = {
+        **metadata,
+        "title": body.title,
+        "cover_image": body.cover_image,
+        "takeaways": [{"headline": t.headline, "body": t.body} for t in body.takeaways],
+        "colors": colors,
+        "typography": typography,
+    }
 
     return metadata
+
+
+@router.post("/render-pptx")
+async def render_pptx(body: RenderCustomRequest):
+    """Generate an editable PPTX for Google Slides import."""
+    from app.services.pptx_builder import build_pptx
+
+    colors = {
+        "slide_bg":     body.colors.slide_bg,
+        "headline":     body.colors.headline,
+        "body":         body.colors.body,
+        "progress_bar": body.colors.progress_bar,
+    }
+    typography = {
+        "headline_font": body.typography.headline_font,
+        "body_font":     body.typography.body_font,
+        "headline_size": body.typography.headline_size,
+        "body_size":     body.typography.body_size,
+        "text_align":    body.typography.text_align,
+    }
+    takeaways = [{"headline": t.headline, "body": t.body} for t in body.takeaways]
+
+    cover_bytes = await _fetch_bytes(body.cover_image) if body.cover_image else None
+    cta_bytes   = CTA_IMAGE_PATH.read_bytes() if CTA_IMAGE_PATH.exists() else None
+
+    slide_img_list: list[bytes | None] = []
+    for t in body.takeaways:
+        slide_img_list.append(await _fetch_bytes(t.slide_image) if t.slide_image else None)
+
+    carousel_id = uuid.uuid4().hex
+    out_path = OUTPUT_DIR / carousel_id / f"{carousel_id}.pptx"
+
+    build_pptx(
+        title=body.title,
+        takeaways=takeaways,
+        colors=colors,
+        typography=typography,
+        out_path=out_path,
+        cover_img_bytes=cover_bytes,
+        cta_img_bytes=cta_bytes,
+        slide_img_bytes_list=slide_img_list,
+    )
+
+    return FileResponse(
+        str(out_path),
+        media_type="application/vnd.openxmlformats-officedocument.presentationml.presentation",
+        filename=f"carousel_{carousel_id}.pptx",
+        headers={"Content-Disposition": f"attachment; filename=carousel_{carousel_id}.pptx"},
+    )
 
 
 class RegenerateAIRequest(BaseModel):
