@@ -340,7 +340,8 @@ export default function Home() {
   const [url, setUrl] = useState("");
   const [phase, setPhase] = useState<Phase>("idle");
   const [error, setError] = useState<string | null>(null);
-  const [carousel, setCarousel] = useState<CarouselState | null>(null);
+  const [carousel, _setCarousel] = useState<CarouselState | null>(null);
+  const carouselRef = useRef<CarouselState | null>(null);
   const [current, setCurrent] = useState(0);
   const [showColors, setShowColors] = useState(false);
   const [showTypography, setShowTypography] = useState(false);

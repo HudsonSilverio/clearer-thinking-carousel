@@ -49,7 +49,10 @@
       "Bash(taskkill /F /IM python.exe /T taskkill /F /IM uvicorn.exe /T sleep 3 netstat -ano)",
       "PowerShell(Stop-Process *)",
       "Bash(npx tsc *)",
-      "Read(//tmp/**)"
+      "Read(//tmp/**)",
+      "Bash(identify /c/Users/hudpi/projetos/clearer-thinking-carousel/dashboard/public/cta-slide.png)",
+      "Bash(python3 -c ' *)",
+      "Bash(pip install *)"
     ]
   }
 }
