@@ -7,7 +7,7 @@ import {
   RefreshCw, X, Settings, Type, AlignLeft, AlignCenter, AlignRight,
 } from "lucide-react";
 
-const API = "http://localhost:8001";
+const API = "http://localhost:8000";
 const SLIDE_FULL = 1080;
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -340,8 +340,7 @@ export default function Home() {
   const [url, setUrl] = useState("");
   const [phase, setPhase] = useState<Phase>("idle");
   const [error, setError] = useState<string | null>(null);
-  const [carousel, _setCarousel] = useState<CarouselState | null>(null);
-  const carouselRef = useRef<CarouselState | null>(null);
+  const [carousel, setCarousel] = useState<CarouselState | null>(null);
   const [current, setCurrent] = useState(0);
   const [showColors, setShowColors] = useState(false);
   const [showTypography, setShowTypography] = useState(false);
@@ -366,13 +365,17 @@ export default function Home() {
     const t1 = setTimeout(() => setPhase("generating"), 8_000);
     const t2 = setTimeout(() => setPhase("rendering"), 20_000);
 
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 120_000);
+
     try {
       const res = await fetch(`${API}/api/carousel/generate`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ url: trimmed }),
+        signal: controller.signal,
       });
-      clearTimeout(t1); clearTimeout(t2);
+      clearTimeout(timeout); clearTimeout(t1); clearTimeout(t2);
       if (!res.ok) {
         const b = await res.json().catch(() => ({}));
         throw new Error(b.detail ?? `Error ${res.status}`);
@@ -391,8 +394,12 @@ export default function Home() {
       });
       setPhase("done");
     } catch (e: unknown) {
-      clearTimeout(t1); clearTimeout(t2);
-      setError(e instanceof Error ? e.message : "Unexpected error.");
+      clearTimeout(timeout); clearTimeout(t1); clearTimeout(t2);
+      if (e instanceof DOMException && e.name === "AbortError") {
+        setError("Request timed out after 120 seconds.");
+      } else {
+        setError(e instanceof Error ? e.message : "Unexpected error.");
+      }
       setPhase("error");
     }
   }

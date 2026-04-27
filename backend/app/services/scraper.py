@@ -1,5 +1,6 @@
+import asyncio
 import re
-from playwright.async_api import async_playwright
+from playwright.sync_api import sync_playwright
 
 _SITE_BANNER_ID = "a8e1f3e15ccb41b88df85a10bb90531a"
 
@@ -50,18 +51,18 @@ def _build_takeaway(headline_line: str, body_lines: list[str]) -> dict:
     return {"headline": parsed["headline"], "body": final_body}
 
 
-async def scrape_post(url: str) -> dict:
-    async with async_playwright() as p:
-        browser = await p.chromium.launch()
-        page = await browser.new_page()
-        await page.goto(url, wait_until="domcontentloaded", timeout=45_000)
-        await page.wait_for_timeout(5_000)
+def _scrape_post_sync(url: str) -> dict:
+    with sync_playwright() as p:
+        browser = p.chromium.launch()
+        page = browser.new_page()
+        page.goto(url, wait_until="domcontentloaded", timeout=45_000)
+        page.wait_for_timeout(5_000)
 
-        title = await _extract_title(page)
-        cover_image = await _extract_cover_image(page)
-        takeaways = await _extract_takeaways(page)
+        title = _extract_title(page)
+        cover_image = _extract_cover_image(page)
+        takeaways = _extract_takeaways(page)
 
-        await browser.close()
+        browser.close()
 
     return {
         "url": url,
@@ -72,31 +73,35 @@ async def scrape_post(url: str) -> dict:
     }
 
 
-async def _extract_title(page) -> str:
-    h1s = await page.query_selector_all("h1")
+async def scrape_post(url: str) -> dict:
+    return await asyncio.to_thread(_scrape_post_sync, url)
+
+
+def _extract_title(page) -> str:
+    h1s = page.query_selector_all("h1")
     for h in h1s:
-        text = (await h.inner_text()).strip()
+        text = h.inner_text().strip()
         if text:
             return strip_emojis(text)
-    raw = await page.title()
+    raw = page.title()
     return strip_emojis(raw.split("|")[0].strip())
 
 
-async def _extract_cover_image(page) -> str | None:
-    imgs = await page.query_selector_all("img[src*='wixstatic']")
+def _extract_cover_image(page) -> str | None:
+    imgs = page.query_selector_all("img[src*='wixstatic']")
     for img in imgs:
-        src = await img.get_attribute("src") or ""
+        src = img.get_attribute("src") or ""
         if _SITE_BANNER_ID in src:
             continue
-        nat_w = await img.evaluate("el => el.naturalWidth")
+        nat_w = img.evaluate("el => el.naturalWidth")
         if nat_w > 200:
             base = src.split("/v1/")[0]
             return f"{base}/v1/fill/w_1200,h_630,al_c,q_90,usm_0.66_1.00_0.01/image.png"
     return None
 
 
-async def _extract_takeaways(page) -> list[dict]:
-    body_text = await page.inner_text("body")
+def _extract_takeaways(page) -> list[dict]:
+    body_text = page.inner_text("body")
     lines = [l.strip() for l in body_text.splitlines() if l.strip()]
 
     # Strategy 1: look for explicit "key takeaways" marker

@@ -1,8 +1,9 @@
+import asyncio
 import os
 import uuid
 import tempfile
 from pathlib import Path
-from playwright.async_api import async_playwright
+from playwright.sync_api import sync_playwright
 import PIL.JpegImagePlugin  # registers JPEG encoder required by Pillow's PDF plugin
 from PIL import Image, ImageDraw
 from app.utils.brand import SLIDE_WIDTH, SLIDE_HEIGHT
@@ -31,27 +32,23 @@ def _render_cta_image(slide: dict, out_path: Path) -> None:
     img.save(str(out_path), "PNG")
 
 
-async def render_slides(slides: list[dict], carousel_id: str | None = None) -> dict:
-    if carousel_id is None:
-        carousel_id = uuid.uuid4().hex
-
+def _render_slides_sync(slides: list[dict], carousel_id: str) -> dict:
     out_dir = OUTPUT_DIR / carousel_id
     out_dir.mkdir(parents=True, exist_ok=True)
 
-    # (index, path) collected from both HTML and image slides
     indexed_paths: list[tuple[int, str]] = []
 
     # ── HTML slides via Playwright ────────────────────────────────────────────
     html_slides = [s for s in slides if s.get("html") is not None]
 
-    async with async_playwright() as p:
-        browser = await p.chromium.launch()
-        context = await browser.new_context(
+    with sync_playwright() as p:
+        browser = p.chromium.launch()
+        context = browser.new_context(
             viewport={"width": SLIDE_WIDTH, "height": SLIDE_HEIGHT},
         )
 
         for slide in html_slides:
-            page = await context.new_page()
+            page = context.new_page()
             with tempfile.NamedTemporaryFile(
                 suffix=".html", mode="w", encoding="utf-8", delete=False
             ) as f:
@@ -59,22 +56,22 @@ async def render_slides(slides: list[dict], carousel_id: str | None = None) -> d
                 tmp_path = f.name
 
             try:
-                await page.goto(
+                page.goto(
                     f"file:///{tmp_path.replace(os.sep, '/')}",
                     wait_until="load",
                 )
-                await page.wait_for_timeout(1500)
+                page.wait_for_timeout(1500)
                 png_path = out_dir / f"slide_{slide['index']:02d}.png"
-                await page.screenshot(
+                page.screenshot(
                     path=str(png_path),
                     clip={"x": 0, "y": 0, "width": SLIDE_WIDTH, "height": SLIDE_HEIGHT},
                 )
                 indexed_paths.append((slide["index"], str(png_path)))
             finally:
-                await page.close()
+                page.close()
                 os.unlink(tmp_path)
 
-        await browser.close()
+        browser.close()
 
     # ── Image-based slides via Pillow ─────────────────────────────────────────
     for slide in slides:
@@ -83,7 +80,6 @@ async def render_slides(slides: list[dict], carousel_id: str | None = None) -> d
             _render_cta_image(slide, png_path)
             indexed_paths.append((slide["index"], str(png_path)))
 
-    # Sort by slide index to get final ordered list
     indexed_paths.sort(key=lambda x: x[0])
     png_paths = [p for _, p in indexed_paths]
 
@@ -96,6 +92,12 @@ async def render_slides(slides: list[dict], carousel_id: str | None = None) -> d
         "pdf_path": str(pdf_path),
         "slide_count": len(png_paths),
     }
+
+
+async def render_slides(slides: list[dict], carousel_id: str | None = None) -> dict:
+    if carousel_id is None:
+        carousel_id = uuid.uuid4().hex
+    return await asyncio.to_thread(_render_slides_sync, slides, carousel_id)
 
 
 def _build_pdf(png_paths: list[str], out_dir: Path, carousel_id: str) -> Path:
