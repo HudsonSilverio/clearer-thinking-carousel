@@ -52,7 +52,12 @@
       "Read(//tmp/**)",
       "Bash(identify /c/Users/hudpi/projetos/clearer-thinking-carousel/dashboard/public/cta-slide.png)",
       "Bash(python3 -c ' *)",
-      "Bash(pip install *)"
+      "Bash(pip install *)",
+      "Bash(source:*)",
+      "Bash(npm install:*)",
+      "mcp__ide__getDiagnostics",
+      "Bash(curl:*)",
+      "Bash(git commit:*)"
     ]
   }
 }
