@@ -1,3 +1,4 @@
+import os
 import sys
 import asyncio
 
@@ -14,14 +15,19 @@ from app.api.routes import blog, carousel, upload
 
 load_dotenv()
 
-GENERATED_DIR = Path(__file__).resolve().parents[3] / "generated_carousels"
-GENERATED_DIR.mkdir(exist_ok=True)
+GENERATED_DIR = Path(os.getenv("GENERATED_DIR", str(Path(__file__).resolve().parents[3] / "generated_carousels")))
+GENERATED_DIR.mkdir(parents=True, exist_ok=True)
 
 app = FastAPI(title="Clearer Thinking Carousel API", version="2.0.0")
 
+allowed_origins = [
+    "http://localhost:3000",
+    os.getenv("FRONTEND_URL", "http://localhost:3000"),
+]
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000"],
+    allow_origins=allowed_origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

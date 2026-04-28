@@ -1,3 +1,4 @@
+import os
 import uuid
 from pathlib import Path
 from fastapi import APIRouter, File, HTTPException, UploadFile
@@ -6,8 +7,7 @@ router = APIRouter(prefix="/upload", tags=["upload"])
 
 _ALLOWED = {"image/jpeg", "image/png", "image/webp", "image/jpg"}
 
-# Same base as image_renderer.OUTPUT_DIR (parents[5] from this file depth)
-UPLOAD_DIR = Path(__file__).resolve().parents[5] / "generated_carousels" / "uploads"
+UPLOAD_DIR = Path(os.getenv("GENERATED_DIR", str(Path(__file__).resolve().parents[5] / "generated_carousels"))) / "uploads"
 
 
 @router.post("/image")

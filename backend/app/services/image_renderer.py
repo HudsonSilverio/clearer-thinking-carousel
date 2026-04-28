@@ -8,7 +8,8 @@ import PIL.JpegImagePlugin  # registers JPEG encoder required by Pillow's PDF pl
 from PIL import Image, ImageDraw
 from app.utils.brand import SLIDE_WIDTH, SLIDE_HEIGHT
 
-OUTPUT_DIR = Path(__file__).resolve().parents[4] / "generated_carousels"
+import os as _os
+OUTPUT_DIR = Path(_os.getenv("GENERATED_DIR", str(Path(__file__).resolve().parents[4] / "generated_carousels")))
 
 
 def _render_cta_image(slide: dict, out_path: Path) -> None:

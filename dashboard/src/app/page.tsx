@@ -7,7 +7,7 @@ import {
   RefreshCw, X, Settings, Type, AlignLeft, AlignCenter, AlignRight,
 } from "lucide-react";
 
-const API = "http://localhost:8000";
+const API = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 const SLIDE_FULL = 1080;
 
 // ─── Types ────────────────────────────────────────────────────────────────────

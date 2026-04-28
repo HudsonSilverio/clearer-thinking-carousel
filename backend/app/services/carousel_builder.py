@@ -9,7 +9,11 @@ from app.utils.brand import (
 )
 
 _SITE_ROOT = Path(__file__).resolve().parents[3]  # clearer-thinking-carousel/
-CTA_IMAGE_PATH = _SITE_ROOT / "dashboard" / "public" / "cta-slide.png"
+_BACKEND_ROOT = Path(__file__).resolve().parents[2]  # backend/
+# Check Docker-local copy first, then fall back to monorepo path
+_CTA_DOCKER = _BACKEND_ROOT / "cta-slide.png"
+_CTA_MONO = _SITE_ROOT / "dashboard" / "public" / "cta-slide.png"
+CTA_IMAGE_PATH = _CTA_DOCKER if _CTA_DOCKER.exists() else _CTA_MONO
 
 # ─── Font registry ────────────────────────────────────────────────────────────
 
