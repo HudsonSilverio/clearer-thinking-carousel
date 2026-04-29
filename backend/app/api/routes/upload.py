@@ -7,7 +7,8 @@ router = APIRouter(prefix="/upload", tags=["upload"])
 
 _ALLOWED = {"image/jpeg", "image/png", "image/webp", "image/jpg"}
 
-UPLOAD_DIR = Path(os.getenv("GENERATED_DIR", str(Path(__file__).resolve().parents[5] / "generated_carousels"))) / "uploads"
+_default_dir = Path(__file__).resolve().parent.parent.parent.parent / "generated_carousels"
+UPLOAD_DIR = Path(os.getenv("GENERATED_DIR", str(_default_dir))) / "uploads"
 
 
 @router.post("/image")

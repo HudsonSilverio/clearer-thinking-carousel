@@ -8,8 +8,8 @@ from app.utils.brand import (
     PROGRESS_BAR_COLOR,
 )
 
-_SITE_ROOT = Path(__file__).resolve().parents[3]  # clearer-thinking-carousel/
-_BACKEND_ROOT = Path(__file__).resolve().parents[2]  # backend/
+_BACKEND_ROOT = Path(__file__).resolve().parent.parent.parent  # backend/
+_SITE_ROOT = _BACKEND_ROOT.parent  # clearer-thinking-carousel/
 # Check Docker-local copy first, then fall back to monorepo path
 _CTA_DOCKER = _BACKEND_ROOT / "cta-slide.png"
 _CTA_MONO = _SITE_ROOT / "dashboard" / "public" / "cta-slide.png"

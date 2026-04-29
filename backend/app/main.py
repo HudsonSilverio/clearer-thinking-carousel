@@ -15,7 +15,8 @@ from app.api.routes import blog, carousel, upload
 
 load_dotenv()
 
-GENERATED_DIR = Path(os.getenv("GENERATED_DIR", str(Path(__file__).resolve().parents[3] / "generated_carousels")))
+_default_dir = Path(__file__).resolve().parent.parent / "generated_carousels"
+GENERATED_DIR = Path(os.getenv("GENERATED_DIR", str(_default_dir)))
 GENERATED_DIR.mkdir(parents=True, exist_ok=True)
 
 app = FastAPI(title="Clearer Thinking Carousel API", version="2.0.0")
