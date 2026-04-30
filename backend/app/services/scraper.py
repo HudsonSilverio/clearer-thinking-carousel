@@ -1,6 +1,5 @@
-import asyncio
 import re
-from playwright.sync_api import sync_playwright
+from playwright.async_api import async_playwright
 
 _SITE_BANNER_ID = "a8e1f3e15ccb41b88df85a10bb90531a"
 
@@ -33,7 +32,7 @@ def _split_takeaway(text: str) -> dict:
         headline = cleaned[: dot + 1].strip()
         body = cleaned[dot + 1 :].strip()
     else:
-        headline = cleaned  # keep as-is (period at end or no period)
+        headline = cleaned
         body = ""
     return {"headline": headline, "body": body}
 
@@ -43,26 +42,24 @@ def _build_takeaway(headline_line: str, body_lines: list[str]) -> dict:
     parsed = _split_takeaway(headline_line)
     inline_body = parsed.get("body", "")
     collected = " ".join(body_lines).strip()
-    # If the emoji line already has substantial inline body, use it as-is
     if len(inline_body) > 50 or not collected:
         return {"headline": parsed["headline"], "body": inline_body}
-    # Otherwise merge: inline prefix (if any) + collected body lines
     final_body = f"{inline_body} {collected}".strip() if inline_body else collected
     return {"headline": parsed["headline"], "body": final_body}
 
 
-def _scrape_post_sync(url: str) -> dict:
-    with sync_playwright() as p:
-        browser = p.chromium.launch()
-        page = browser.new_page()
-        page.goto(url, wait_until="domcontentloaded", timeout=45_000)
-        page.wait_for_timeout(5_000)
+async def scrape_post(url: str) -> dict:
+    async with async_playwright() as p:
+        browser = await p.chromium.launch()
+        page = await browser.new_page()
+        await page.goto(url, wait_until="domcontentloaded", timeout=45_000)
+        await page.wait_for_timeout(5_000)
 
-        title = _extract_title(page)
-        cover_image = _extract_cover_image(page)
-        takeaways = _extract_takeaways(page)
+        title = await _extract_title(page)
+        cover_image = await _extract_cover_image(page)
+        takeaways = await _extract_takeaways(page)
 
-        browser.close()
+        await browser.close()
 
     return {
         "url": url,
@@ -73,35 +70,31 @@ def _scrape_post_sync(url: str) -> dict:
     }
 
 
-async def scrape_post(url: str) -> dict:
-    return await asyncio.to_thread(_scrape_post_sync, url)
-
-
-def _extract_title(page) -> str:
-    h1s = page.query_selector_all("h1")
+async def _extract_title(page) -> str:
+    h1s = await page.query_selector_all("h1")
     for h in h1s:
-        text = h.inner_text().strip()
+        text = (await h.inner_text()).strip()
         if text:
             return strip_emojis(text)
-    raw = page.title()
+    raw = await page.title()
     return strip_emojis(raw.split("|")[0].strip())
 
 
-def _extract_cover_image(page) -> str | None:
-    imgs = page.query_selector_all("img[src*='wixstatic']")
+async def _extract_cover_image(page) -> str | None:
+    imgs = await page.query_selector_all("img[src*='wixstatic']")
     for img in imgs:
-        src = img.get_attribute("src") or ""
+        src = await img.get_attribute("src") or ""
         if _SITE_BANNER_ID in src:
             continue
-        nat_w = img.evaluate("el => el.naturalWidth")
+        nat_w = await img.evaluate("el => el.naturalWidth")
         if nat_w > 200:
             base = src.split("/v1/")[0]
             return f"{base}/v1/fill/w_1200,h_630,al_c,q_90,usm_0.66_1.00_0.01/image.png"
     return None
 
 
-def _extract_takeaways(page) -> list[dict]:
-    body_text = page.inner_text("body")
+async def _extract_takeaways(page) -> list[dict]:
+    body_text = await page.inner_text("body")
     lines = [l.strip() for l in body_text.splitlines() if l.strip()]
 
     # Strategy 1: look for explicit "key takeaways" marker
@@ -123,9 +116,6 @@ def _extract_takeaways(page) -> list[dict]:
     if takeaway_start is None:
         return []
 
-    # Group lines into takeaways.  Each group starts with an emoji-prefixed
-    # line (headline); non-emoji lines that follow are the body.  Stop scanning
-    # after MAX_GAP consecutive non-emoji lines (the takeaway section has ended).
     MAX_BODY = 5
     MAX_GAP = 12
 
