@@ -67,8 +67,8 @@ export default function RootLayout({
     roboto.variable, openSans.variable,
   ].join(" ");
   return (
-    <html lang="en" className={`${fonts} h-full`}>
-      <body className="min-h-full flex flex-col antialiased">{children}</body>
+    <html lang="en" className={`${fonts} h-full`} suppressHydrationWarning={true}>
+      <body className="min-h-full flex flex-col antialiased" suppressHydrationWarning={true}>{children}</body>
     </html>
   );
 }
