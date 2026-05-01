@@ -1,17 +1,20 @@
 import os
 import sys
 import asyncio
+import logging
 
 # Playwright requires ProactorEventLoop on Windows (SelectorEventLoop blocks subprocesses)
 if sys.platform == "win32":
     asyncio.set_event_loop_policy(asyncio.WindowsProactorEventLoopPolicy())
+
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 from pathlib import Path
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from dotenv import load_dotenv
-from app.api.routes import blog, carousel, upload
 
 load_dotenv()
 
@@ -34,17 +37,44 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-app.include_router(blog.router, prefix="/api")
-app.include_router(carousel.router, prefix="/api")
-app.include_router(upload.router, prefix="/api")
 
-app.mount(
-    "/generated_carousels",
-    StaticFiles(directory=str(GENERATED_DIR)),
-    name="generated_carousels",
-)
+@app.get("/")
+def root():
+    return {"status": "ok"}
 
 
 @app.get("/health")
-async def health_check():
+def health():
     return {"status": "ok"}
+
+
+try:
+    from app.api.routes import blog
+    app.include_router(blog.router, prefix="/api")
+    logger.info("Blog router loaded")
+except Exception as e:
+    logger.error(f"Failed to load blog router: {e}")
+
+try:
+    from app.api.routes import carousel
+    app.include_router(carousel.router, prefix="/api")
+    logger.info("Carousel router loaded")
+except Exception as e:
+    logger.error(f"Failed to load carousel router: {e}")
+
+try:
+    from app.api.routes import upload
+    app.include_router(upload.router, prefix="/api")
+    logger.info("Upload router loaded")
+except Exception as e:
+    logger.error(f"Failed to load upload router: {e}")
+
+try:
+    app.mount(
+        "/generated_carousels",
+        StaticFiles(directory=str(GENERATED_DIR)),
+        name="generated_carousels",
+    )
+    logger.info("Static files mounted")
+except Exception as e:
+    logger.error(f"Failed to mount static files: {e}")
