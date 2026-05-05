@@ -57,7 +57,9 @@
       "Bash(npm install:*)",
       "mcp__ide__getDiagnostics",
       "Bash(curl:*)",
-      "Bash(git commit:*)"
+      "Bash(git commit:*)",
+      "Bash(git:*)",
+      "Bash(GIT_EDITOR=true git rebase:*)"
     ]
   }
 }
