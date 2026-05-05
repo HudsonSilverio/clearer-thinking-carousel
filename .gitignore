@@ -8,6 +8,7 @@ __pycache__/
 # Environment — never commit real secrets
 backend/.env
 dashboard/.env.local
+backend/.env.example
 
 # Next.js
 dashboard/.next/
