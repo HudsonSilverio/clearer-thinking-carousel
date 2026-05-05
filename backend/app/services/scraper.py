@@ -53,7 +53,7 @@ async def scrape_post(url: str) -> dict:
         browser = await p.chromium.launch()
         page = await browser.new_page()
         await page.goto(url, wait_until="domcontentloaded", timeout=45_000)
-        await page.wait_for_timeout(5_000)
+        await page.wait_for_timeout(2_000)
 
         title = await _extract_title(page)
         cover_image = await _extract_cover_image(page)

@@ -118,11 +118,13 @@ async def generate_carousel(body: GenerateRequest):
     takeaways = scraped["takeaways"]
     cover_image = scraped["cover_image"]
 
-    # Prefetch cover image as base64 so Playwright renders it reliably
+    # Run cover image prefetch and AI generation in parallel
+    import asyncio
+    cover_coro = _to_data_url(cover_image) if cover_image else asyncio.sleep(0)
+    ai_coro = generate_content(title, takeaways)
+    cover_result, ai = await asyncio.gather(cover_coro, ai_coro)
     if cover_image:
-        cover_image = await _to_data_url(cover_image)
-
-    ai = await generate_content(title, takeaways)
+        cover_image = cover_result
 
     slides = build_slides(title=title, cover_image=cover_image, takeaways=takeaways)
 

@@ -1,3 +1,4 @@
+import asyncio
 import os
 import re
 import json
@@ -70,10 +71,14 @@ Return ONLY valid JSON (no markdown fences) with exactly these keys:
   "hashtags": ["#ClearerThinking", "<9 more relevant hashtags>"]
 }}"""
 
-        response = client.models.generate_content(
-            model="gemini-2.5-flash",
-            contents=prompt,
-            config=types.GenerateContentConfig(temperature=0.7),
+        response = await asyncio.wait_for(
+            asyncio.to_thread(
+                client.models.generate_content,
+                model="gemini-2.5-flash",
+                contents=prompt,
+                config=types.GenerateContentConfig(temperature=0.7),
+            ),
+            timeout=30,
         )
         raw = response.text.strip()
         raw = re.sub(r"^```[a-z]*\n?", "", raw).rstrip("`").strip()

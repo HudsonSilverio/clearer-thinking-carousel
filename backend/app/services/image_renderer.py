@@ -62,7 +62,7 @@ def _render_slides_sync(slides: list[dict], carousel_id: str) -> dict:
                     f"file:///{tmp_path.replace(os.sep, '/')}",
                     wait_until="load",
                 )
-                page.wait_for_timeout(1500)
+                page.wait_for_timeout(500)
                 png_path = out_dir / f"slide_{slide['index']:02d}.png"
                 page.screenshot(
                     path=str(png_path),

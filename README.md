@@ -1,1 +1,1 @@
-proto para equipe
+pronto para equipe

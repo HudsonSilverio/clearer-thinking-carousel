@@ -366,7 +366,7 @@ export default function Home() {
     const t2 = setTimeout(() => setPhase("rendering"), 20_000);
 
     const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 120_000);
+    const timeout = setTimeout(() => controller.abort(), 300_000);
 
     try {
       const res = await fetch(`${API}/api/carousel/generate`, {
@@ -396,7 +396,7 @@ export default function Home() {
     } catch (e: unknown) {
       clearTimeout(timeout); clearTimeout(t1); clearTimeout(t2);
       if (e instanceof DOMException && e.name === "AbortError") {
-        setError("Request timed out after 120 seconds.");
+        setError("Request timed out. Please try again.");
       } else {
         setError(e instanceof Error ? e.message : "Unexpected error.");
       }

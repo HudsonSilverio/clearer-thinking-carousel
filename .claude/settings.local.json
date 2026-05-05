@@ -59,7 +59,9 @@
       "Bash(curl:*)",
       "Bash(git commit:*)",
       "Bash(git:*)",
-      "Bash(GIT_EDITOR=true git rebase:*)"
+      "Bash(GIT_EDITOR=true git rebase:*)",
+      "Bash(xargs grep:*)",
+      "Bash(grep:*)"
     ]
   }
 }
