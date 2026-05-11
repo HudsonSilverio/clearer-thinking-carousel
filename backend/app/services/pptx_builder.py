@@ -16,7 +16,7 @@ from pptx.enum.text import PP_ALIGN
 EMU_PER_PX = 9525          # 914 400 EMU/in ÷ 96 px/in
 SLIDE_EMU   = 1080 * EMU_PER_PX
 
-COVER_BG_HEX = "#F5F5F8"
+COVER_BG_HEX = "#EFF6FF"
 TOP_IMG_H    = round(1080 * 0.65)   # 702 px
 BOT_H        = 1080 - TOP_IMG_H     # 378 px
 PAD          = 80                   # cover horizontal padding
@@ -97,9 +97,9 @@ def _add_textbox(slide, text: str,
 # ─── Slide builders ───────────────────────────────────────────────────────────
 
 def _cover(prs: Presentation, title: str, cover_bytes: Optional[bytes],
-           colors: dict, typography: dict) -> None:
+           total: int, colors: dict, typography: dict) -> None:
     sl = prs.slides.add_slide(prs.slide_layouts[6])   # blank layout
-    _set_bg(sl, COVER_BG_HEX)
+    _set_bg(sl, colors["slide_bg"])
 
     # Top area: cover image or solid fill
     if cover_bytes:
@@ -108,7 +108,7 @@ def _cover(prs: Presentation, title: str, cover_bytes: Optional[bytes],
         _add_rect(sl, colors["slide_bg"], 0, 0, 1080, TOP_IMG_H)
 
     # Bottom panel (explicit rect so colour is visible even if bg bleeds)
-    _add_rect(sl, COVER_BG_HEX, 0, TOP_IMG_H, 1080, BOT_H)
+    _add_rect(sl, colors["slide_bg"], 0, TOP_IMG_H, 1080, BOT_H)
 
     # Title
     _add_textbox(
@@ -120,6 +120,10 @@ def _cover(prs: Presentation, title: str, cover_bytes: Optional[bytes],
 
     # Accent underline
     _add_rect(sl, colors["progress_bar"], 520 - 20, 1080 - 32, 40, 4)
+
+    # Progress bar
+    progress_w = max(8, round(1080 / total))
+    _add_rect(sl, colors["progress_bar"], 0, 1072, progress_w, 8)
 
 
 def _content(prs: Presentation, headline: str, body: str,
@@ -158,11 +162,31 @@ def _content(prs: Presentation, headline: str, body: str,
     _add_rect(sl, colors["progress_bar"], 0, 1072, progress_w, 8)
 
 
-def _cta(prs: Presentation, cta_bytes: Optional[bytes], colors: dict) -> None:
+def _cta(prs: Presentation, cta_bytes: Optional[bytes], colors: dict,
+         typography: dict) -> None:
     sl = prs.slides.add_slide(prs.slide_layouts[6])
-    _set_bg(sl, "#1A1A2E")
-    if cta_bytes:
-        _add_picture(sl, cta_bytes, 0, 0, 1080, 1080, send_to_back=True)
+    _set_bg(sl, colors["slide_bg"])
+
+    hs = typography["headline_size"]
+
+    # CTA heading — same font/style as cover
+    _add_textbox(
+        sl, "Read the full article (or listen to it) on our website",
+        PAD, 340, 1080 - PAD * 2, round(hs * 1.3 * 3),
+        typography["headline_font"], hs, False, colors["headline"], "center",
+    )
+
+    # Accent bar
+    _add_rect(sl, colors["progress_bar"], 510, 340 + round(hs * 1.3 * 3) + 30, 60, 4)
+
+    # URL
+    _add_textbox(
+        sl, "www.clearerthinking.org/blog",
+        PAD, 340 + round(hs * 1.3 * 3) + 80, 1080 - PAD * 2, 60,
+        typography["body_font"], 32, True, colors["body"], "center",
+    )
+
+    # Progress bar (full width = last slide)
     _add_rect(sl, colors["progress_bar"], 0, 1072, 1080, 8)
 
 
@@ -184,14 +208,14 @@ def build_pptx(
 
     total = len(takeaways) + 2
 
-    _cover(prs, title, cover_img_bytes, colors, typography)
+    _cover(prs, title, cover_img_bytes, total, colors, typography)
 
     for i, takeaway in enumerate(takeaways):
         sib = slide_img_bytes_list[i] if (slide_img_bytes_list and i < len(slide_img_bytes_list)) else None
         _content(prs, takeaway["headline"], takeaway.get("body", ""),
                  i + 1, total, colors, typography, sib)
 
-    _cta(prs, cta_img_bytes, colors)
+    _cta(prs, cta_img_bytes, colors, typography)
 
     out_path.parent.mkdir(parents=True, exist_ok=True)
     prs.save(str(out_path))

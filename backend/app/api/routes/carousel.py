@@ -73,7 +73,7 @@ class TakeawayItem(BaseModel):
 
 
 class ColorsInput(BaseModel):
-    slide_bg: str = "#E8EDF4"
+    slide_bg: str = "#EFF6FF"
     headline: str = "#555555"
     body: str = "#6B6B6B"
     progress_bar: str = "#E8A838"

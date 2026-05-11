@@ -1,5 +1,9 @@
 import re
-from playwright.async_api import async_playwright
+import sys
+import json
+import asyncio
+import subprocess
+from pathlib import Path
 
 _SITE_BANNER_ID = "a8e1f3e15ccb41b88df85a10bb90531a"
 
@@ -19,126 +23,32 @@ _EMOJI_RE = re.compile(
     flags=re.UNICODE,
 )
 
+_WORKER_SCRIPT = Path(__file__).with_name("_scraper_worker.py")
+
 
 def strip_emojis(text: str) -> str:
     return _EMOJI_RE.sub("", text).strip()
 
 
-def _split_takeaway(text: str) -> dict:
-    """Split 'Headline sentence. Body explanation text.' into {headline, body}."""
-    cleaned = strip_emojis(text).strip()
-    dot = cleaned.find(".")
-    if dot != -1 and dot < len(cleaned) - 1:
-        headline = cleaned[: dot + 1].strip()
-        body = cleaned[dot + 1 :].strip()
-    else:
-        headline = cleaned
-        body = ""
-    return {"headline": headline, "body": body}
-
-
-def _build_takeaway(headline_line: str, body_lines: list[str]) -> dict:
-    """Merge an emoji-prefixed headline line with optional collected body lines."""
-    parsed = _split_takeaway(headline_line)
-    inline_body = parsed.get("body", "")
-    collected = " ".join(body_lines).strip()
-    if len(inline_body) > 50 or not collected:
-        return {"headline": parsed["headline"], "body": inline_body}
-    final_body = f"{inline_body} {collected}".strip() if inline_body else collected
-    return {"headline": parsed["headline"], "body": final_body}
-
-
 async def scrape_post(url: str) -> dict:
-    async with async_playwright() as p:
-        browser = await p.chromium.launch()
-        page = await browser.new_page()
-        await page.goto(url, wait_until="domcontentloaded", timeout=45_000)
-        await page.wait_for_timeout(2_000)
-
-        title = await _extract_title(page)
-        cover_image = await _extract_cover_image(page)
-        takeaways = await _extract_takeaways(page)
-
-        await browser.close()
-
-    return {
-        "url": url,
-        "title": title,
-        "cover_image": cover_image,
-        "takeaways": takeaways,
-        "takeaway_count": len(takeaways),
-    }
-
-
-async def _extract_title(page) -> str:
-    h1s = await page.query_selector_all("h1")
-    for h in h1s:
-        text = (await h.inner_text()).strip()
-        if text:
-            return strip_emojis(text)
-    raw = await page.title()
-    return strip_emojis(raw.split("|")[0].strip())
-
-
-async def _extract_cover_image(page) -> str | None:
-    imgs = await page.query_selector_all("img[src*='wixstatic']")
-    for img in imgs:
-        src = await img.get_attribute("src") or ""
-        if _SITE_BANNER_ID in src:
-            continue
-        nat_w = await img.evaluate("el => el.naturalWidth")
-        if nat_w > 200:
-            base = src.split("/v1/")[0]
-            return f"{base}/v1/fill/w_1200,h_630,al_c,q_90,usm_0.66_1.00_0.01/image.png"
-    return None
-
-
-async def _extract_takeaways(page) -> list[dict]:
-    body_text = await page.inner_text("body")
-    lines = [l.strip() for l in body_text.splitlines() if l.strip()]
-
-    # Strategy 1: look for explicit "key takeaways" marker
-    takeaway_start = None
-    for i, line in enumerate(lines):
-        if "key takeaway" in line.lower():
-            takeaway_start = i + 1
-            break
-
-    # Strategy 2: first run of 3+ consecutive emoji-prefixed lines
-    if takeaway_start is None:
-        for i, line in enumerate(lines):
-            if _EMOJI_RE.match(line):
-                run = sum(1 for l in lines[i : i + 5] if _EMOJI_RE.match(l))
-                if run >= 3:
-                    takeaway_start = i
-                    break
-
-    if takeaway_start is None:
-        return []
-
-    MAX_BODY = 5
-    MAX_GAP = 12
-
-    active_headline: str | None = None
-    active_body: list[str] = []
-    gap = 0
-    groups: list[tuple[str, list[str]]] = []
-
-    for line in lines[takeaway_start:]:
-        if _EMOJI_RE.match(line):
-            if active_headline is not None:
-                groups.append((active_headline, active_body))
-            active_headline = line
-            active_body = []
-            gap = 0
-        else:
-            gap += 1
-            if gap > MAX_GAP:
-                break
-            if active_headline is not None and len(active_body) < MAX_BODY:
-                active_body.append(line)
-
-    if active_headline is not None:
-        groups.append((active_headline, active_body))
-
-    return [t for t in (_build_takeaway(hl, b) for hl, b in groups) if t["headline"]]
+    """Run scraper in a separate process to avoid Windows event-loop issues."""
+    import logging
+    logger = logging.getLogger(__name__)
+    worker = str(_WORKER_SCRIPT)
+    logger.info(f"scrape_post: worker={worker}, exists={_WORKER_SCRIPT.exists()}")
+    try:
+        proc = await asyncio.to_thread(
+            subprocess.run,
+            [sys.executable, worker, url],
+            capture_output=True,
+            text=True,
+            timeout=90,
+        )
+        logger.info(f"scrape_post: rc={proc.returncode}, stdout_len={len(proc.stdout)}, stderr_len={len(proc.stderr)}")
+        if proc.returncode != 0:
+            logger.error(f"scrape_post stderr: {proc.stderr}")
+            raise RuntimeError(proc.stderr or "Scraper process failed")
+        return json.loads(proc.stdout)
+    except Exception as e:
+        logger.error(f"scrape_post exception: {type(e).__name__}: {e}")
+        raise

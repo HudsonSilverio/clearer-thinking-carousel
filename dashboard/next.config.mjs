@@ -1,7 +1,5 @@
-import type { NextConfig } from "next";
-
 const apiUrl = process.env.NEXT_PUBLIC_API_URL || "";
-const remotePatterns: { protocol: "http" | "https"; hostname: string; port?: string }[] = [
+const remotePatterns = [
   { protocol: "http", hostname: "localhost", port: "8000" },
 ];
 
@@ -12,7 +10,8 @@ if (apiUrl.startsWith("https://")) {
   } catch {}
 }
 
-const nextConfig: NextConfig = {
+/** @type {import('next').NextConfig} */
+const nextConfig = {
   images: { remotePatterns },
 };
 

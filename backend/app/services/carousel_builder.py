@@ -42,8 +42,8 @@ _FONT_STACK = {
 _DEFAULT_TYPOGRAPHY = {
     "headline_font": "Source Serif 4",
     "body_font":     "Plus Jakarta Sans",
-    "headline_size": 42,
-    "body_size":     28,
+    "headline_size": 66,
+    "body_size":     42,
     "text_align":    "left",
 }
 
@@ -141,7 +141,7 @@ def _progress_bar(index: int, total: int, color: str) -> str:
 
 # ─── Slide builders ───────────────────────────────────────────────────────────
 
-def build_cover_slide(title: str, cover_image: str | None, colors: dict, typography: dict) -> str:
+def build_cover_slide(title: str, cover_image: str | None, total: int, colors: dict, typography: dict) -> str:
     hf  = _FONT_STACK.get(typography["headline_font"], "'Source Serif 4', serif")
     hs  = typography["headline_size"]
     top = round(SLIDE_HEIGHT * 0.65)
@@ -155,9 +155,9 @@ def build_cover_slide(title: str, cover_image: str | None, colors: dict, typogra
 
     return (
         f'{_head(typography["headline_font"], typography["body_font"])}\n'
-        f'<div class="slide" style="display:flex;flex-direction:column;background:{COVER_BG};">\n'
+        f'<div class="slide" style="display:flex;flex-direction:column;background:{colors["slide_bg"]};">\n'
         f'  <div style="width:{SLIDE_WIDTH}px;height:{top}px;flex-shrink:0;{img_css}"></div>\n'
-        f'  <div style="width:{SLIDE_WIDTH}px;height:{bot}px;background:{COVER_BG};display:flex;\n'
+        f'  <div style="width:{SLIDE_WIDTH}px;height:{bot}px;background:{colors["slide_bg"]};display:flex;\n'
         f'       flex-direction:column;align-items:center;justify-content:center;\n'
         f'       padding:40px 80px;flex-shrink:0;">\n'
         f'    <div style="font-family:{hf};font-size:{hs}px;font-weight:400;\n'
@@ -166,6 +166,7 @@ def build_cover_slide(title: str, cover_image: str | None, colors: dict, typogra
         f'    <div style="width:40px;height:4px;background:{colors["progress_bar"]};\n'
         f'         border-radius:2px;"></div>\n'
         f'  </div>\n'
+        f'  {_progress_bar(0, total, colors["progress_bar"])}\n'
         f'</div>\n</body></html>'
     )
 
@@ -214,6 +215,36 @@ def build_content_slide(
     )
 
 
+def build_cta_slide(
+    index: int,
+    total: int,
+    colors: dict,
+    typography: dict,
+) -> str:
+    """Build the CTA (last) slide matching the cover slide style."""
+    hf = _FONT_STACK.get(typography["headline_font"], "'Source Serif 4', serif")
+    bf = _FONT_STACK.get(typography["body_font"], "'Plus Jakarta Sans', sans-serif")
+    hs = typography["headline_size"]
+
+    return (
+        f'{_head(typography["headline_font"], typography["body_font"])}\n'
+        f'<div class="slide" style="display:flex;flex-direction:column;'
+        f'align-items:center;justify-content:center;background:{colors["slide_bg"]};'
+        f'padding:80px;">\n'
+        f'  <div style="font-family:{hf};font-size:{hs}px;font-weight:400;'
+        f'color:{colors["headline"]};text-align:center;line-height:1.3;'
+        f'margin-bottom:48px;">'
+        f'{_esc("Read the full article (or listen to it) on our website")}</div>\n'
+        f'  <div style="width:60px;height:4px;background:{colors["progress_bar"]};'
+        f'border-radius:2px;margin-bottom:48px;"></div>\n'
+        f'  <div style="font-family:{bf};font-size:32px;font-weight:500;'
+        f'color:{colors["body"]};text-align:center;letter-spacing:0.02em;">'
+        f'www.clearerthinking.org/blog</div>\n'
+        f'  {_progress_bar(index, total, colors["progress_bar"])}\n'
+        f'</div>\n</body></html>'
+    )
+
+
 def build_slides(
     title: str,
     cover_image: str | None,
@@ -224,13 +255,13 @@ def build_slides(
     """Build all slides.
 
     takeaways: list of {headline, body, slide_image?} dicts.
-    Returns a mix of HTML slides and a cta_image descriptor for the last slide.
+    Returns list of HTML slide descriptors (all rendered via Playwright).
     """
     c = _resolve_colors(colors)
     t = _resolve_typography(typography)
     total = len(takeaways) + 2
 
-    slides = [{"type": "cover", "index": 0, "html": build_cover_slide(title, cover_image, c, t)}]
+    slides = [{"type": "cover", "index": 0, "html": build_cover_slide(title, cover_image, total, c, t)}]
 
     for i, takeaway in enumerate(takeaways):
         slides.append({
@@ -247,7 +278,7 @@ def build_slides(
             ),
         })
 
-    # CTA: fixed owl image rendered by Pillow, not Playwright
+    # CTA: fixed image rendered by Pillow, not Playwright
     slides.append({
         "type": "cta_image",
         "index": total - 1,

@@ -20,8 +20,8 @@ IG_HANDLE      = "@clearerthinking"
 # New design constants (Instagram-accurate style)
 # ---------------------------------------------------------------------------
 
-SLIDE_BG            = "#E8EDF4"   # pale blue-gray — ALL content slides
-COVER_BG            = "#F5F5F8"   # near-white — bottom area of cover slide
+SLIDE_BG            = "#EFF6FF"   # light blue — unified background for ALL slides
+COVER_BG            = "#EFF6FF"   # same as SLIDE_BG — unified brand background
 TEXT_HEADLINE       = "#555555"   # dark gray — headlines on content slides
 TEXT_BODY           = "#6B6B6B"   # mid gray — body text on content slides
 PROGRESS_BAR_COLOR  = "#E8A838"   # warm amber — progress bar on all non-cover slides
@@ -69,11 +69,11 @@ class Fonts:
 
 
 class FontSizes:
-    COVER_TITLE   = 42
-    SLIDE_HEADLINE = 42
-    SLIDE_BODY    = 28
-    CTA_HEADING   = 30
-    CTA_URL       = 20
+    COVER_TITLE   = 66
+    SLIDE_HEADLINE = 66
+    SLIDE_BODY    = 42
+    CTA_HEADING   = 44
+    CTA_URL       = 28
 
 
 # ---------------------------------------------------------------------------

@@ -4,7 +4,7 @@ import { useState, useRef, useCallback, useEffect } from "react";
 import {
   ChevronLeft, ChevronRight, Download, RotateCcw,
   Loader2, AlertCircle, Sparkles, Copy, Check,
-  RefreshCw, X, Settings, Type, AlignLeft, AlignCenter, AlignRight,
+  Settings, Type, AlignLeft, AlignCenter, AlignRight,
 } from "lucide-react";
 
 const API = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
@@ -40,8 +40,6 @@ interface CarouselState {
   coverImage: string | null;
   coverImagePath: string | null;
   takeaways: Takeaway[];
-  caption: string;
-  hashtags: string[];
   colors: SlideColors;
   typography: SlideTypography;
 }
@@ -49,7 +47,7 @@ interface CarouselState {
 type Phase = "idle" | "scraping" | "generating" | "rendering" | "done" | "error";
 
 const DEFAULT_COLORS: SlideColors = {
-  slideBg: "#E8EDF4",
+  slideBg: "#EFF6FF",
   headline: "#555555",
   body: "#6B6B6B",
   progressBar: "#E8A838",
@@ -58,8 +56,8 @@ const DEFAULT_COLORS: SlideColors = {
 const DEFAULT_TYPOGRAPHY: SlideTypography = {
   headlineFont: "Source Serif 4",
   bodyFont: "Plus Jakarta Sans",
-  headlineSize: 42,
-  bodySize: 28,
+  headlineSize: 66,
+  bodySize: 42,
   textAlign: "left",
 };
 
@@ -93,7 +91,7 @@ const ALIGN_OPTIONS: { value: "left" | "center" | "right"; Icon: typeof AlignLef
 
 // ─── Slide components ─────────────────────────────────────────────────────────
 
-const COVER_BG = "#F5F5F8";
+const COVER_BG = "#EFF6FF";
 
 function SlideScaler({ displaySize, children }: { displaySize: number; children: React.ReactNode }) {
   const scale = displaySize / SLIDE_FULL;
@@ -148,9 +146,10 @@ function EditableDiv({ value, onChange, style }: {
   );
 }
 
-function CoverSlide({ title, coverImage, colors, typography, onTitleChange, onImageUrlChange, onImageUpload }: {
+function CoverSlide({ title, coverImage, total, colors, typography, onTitleChange, onImageUrlChange, onImageUpload }: {
   title: string;
   coverImage: string | null;
+  total: number;
   colors: SlideColors;
   typography: SlideTypography;
   onTitleChange: (v: string) => void;
@@ -163,9 +162,10 @@ function CoverSlide({ title, coverImage, colors, typography, onTitleChange, onIm
   const [imgUrl, setImgUrl] = useState(coverImage || "");
   const fileInputRef = useRef<HTMLInputElement>(null);
   const hf = FONT_CSS[typography.headlineFont] || "'Source Serif 4', serif";
+  const pct = (1 / total) * 100;
 
   return (
-    <div style={{ width: SLIDE_FULL, height: SLIDE_FULL, display: "flex", flexDirection: "column", background: COVER_BG }}>
+    <div style={{ width: SLIDE_FULL, height: SLIDE_FULL, display: "flex", flexDirection: "column", background: COVER_BG, position: "relative" }}>
       <div style={{
         width: SLIDE_FULL, height: topH, flexShrink: 0, position: "relative",
         background: coverImage ? undefined : colors.slideBg,
@@ -222,6 +222,7 @@ function CoverSlide({ title, coverImage, colors, typography, onTitleChange, onIm
         />
         <div style={{ width: 40, height: 4, background: colors.progressBar, borderRadius: 2 }} />
       </div>
+      <div style={{ position: "absolute", bottom: 0, left: 0, width: `${pct}%`, height: 8, background: colors.progressBar }} />
     </div>
   );
 }
@@ -345,8 +346,6 @@ export default function Home() {
   const [showColors, setShowColors] = useState(false);
   const [showTypography, setShowTypography] = useState(false);
   const [downloading, setDownloading] = useState(false);
-  const [newHashtag, setNewHashtag] = useState("");
-  const [regenerating, setRegenerating] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
 
   const isLoading = phase === "scraping" || phase === "generating" || phase === "rendering";
@@ -387,8 +386,6 @@ export default function Home() {
         coverImage: data.cover_image ?? null,
         coverImagePath: null,
         takeaways: data.takeaways,
-        caption: data.caption,
-        hashtags: data.hashtags,
         colors: { ...DEFAULT_COLORS },
         typography: { ...DEFAULT_TYPOGRAPHY },
       });
@@ -421,17 +418,6 @@ export default function Home() {
     setCarousel(c => c ? { ...c, colors: { ...c.colors, [key]: v } } : c), []);
   const updateTypography = useCallback((key: keyof SlideTypography, v: string | number) =>
     setCarousel(c => c ? { ...c, typography: { ...c.typography, [key]: v } } : c), []);
-  const updateCaption = useCallback((v: string) => setCarousel(c => c ? { ...c, caption: v } : c), []);
-
-  function removeHashtag(tag: string) {
-    setCarousel(c => c ? { ...c, hashtags: c.hashtags.filter(h => h !== tag) } : c);
-  }
-  function addHashtag() {
-    if (!newHashtag.trim()) return;
-    const tag = newHashtag.startsWith("#") ? newHashtag.trim() : `#${newHashtag.trim()}`;
-    setCarousel(c => c ? { ...c, hashtags: [...c.hashtags, tag] } : c);
-    setNewHashtag("");
-  }
 
   // ── Image upload helpers ────────────────────────────────────────────────────
 
@@ -475,28 +461,6 @@ export default function Home() {
     });
   }
 
-  // ── AI Regenerate ───────────────────────────────────────────────────────────
-
-  async function regenerateAI(update: "caption" | "hashtags") {
-    if (!carousel) return;
-    setRegenerating(true);
-    try {
-      const res = await fetch(`${API}/api/carousel/regenerate-ai`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ title: carousel.title, takeaways: carousel.takeaways }),
-      });
-      if (!res.ok) return;
-      const data = await res.json();
-      setCarousel(c => {
-        if (!c) return c;
-        if (update === "caption") return { ...c, caption: data.caption };
-        return { ...c, hashtags: data.hashtags };
-      });
-    } finally {
-      setRegenerating(false);
-    }
-  }
 
   // ── Download ────────────────────────────────────────────────────────────────
 
@@ -604,6 +568,7 @@ export default function Home() {
         <CoverSlide
           title={carousel.title}
           coverImage={carousel.coverImage}
+          total={totalSlides}
           colors={c}
           typography={ty}
           onTitleChange={updateTitle}
@@ -641,6 +606,7 @@ export default function Home() {
       <CoverSlide
         title={carousel.title}
         coverImage={carousel.coverImage}
+        total={totalSlides}
         colors={c}
         typography={ty}
         onTitleChange={() => {}}
@@ -899,69 +865,6 @@ export default function Home() {
                       </div>
                     </div>
                   )}
-                </div>
-
-                {/* Caption */}
-                <div style={{ background: "#fff", borderRadius: 16, border: "1px solid #eee", padding: 18 }}>
-                  <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
-                    <span style={{ fontSize: 13, fontWeight: 600, color: "#1A1A2E" }}>Instagram Caption</span>
-                    <div style={{ display: "flex", gap: 8 }}>
-                      <CopyButton text={carousel.caption} />
-                      <button
-                        onClick={() => regenerateAI("caption")}
-                        disabled={regenerating}
-                        style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 12, color: "#2B5EA7", background: "none", border: "none", cursor: "pointer" }}
-                      >
-                        <RefreshCw size={13} className={regenerating ? "animate-spin" : ""} />
-                        Regenerate
-                      </button>
-                    </div>
-                  </div>
-                  <textarea
-                    value={carousel.caption}
-                    onChange={e => updateCaption(e.target.value)}
-                    rows={4}
-                    style={{ width: "100%", fontSize: 13, color: "#303030", border: "1px solid #e8e8e8", borderRadius: 10, padding: "10px 12px", resize: "vertical", outline: "none", lineHeight: 1.6, fontFamily: "var(--font-dm)" }}
-                  />
-                  <p style={{ fontSize: 11, color: "#aaa", marginTop: 4 }}>{carousel.caption.length}/200 characters</p>
-                </div>
-
-                {/* Hashtags */}
-                <div style={{ background: "#fff", borderRadius: 16, border: "1px solid #eee", padding: 18 }}>
-                  <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
-                    <span style={{ fontSize: 13, fontWeight: 600, color: "#1A1A2E" }}>Hashtags</span>
-                    <div style={{ display: "flex", gap: 8 }}>
-                      <CopyButton text={carousel.hashtags.join(" ")} />
-                      <button
-                        onClick={() => regenerateAI("hashtags")}
-                        disabled={regenerating}
-                        style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 12, color: "#2B5EA7", background: "none", border: "none", cursor: "pointer" }}
-                      >
-                        <RefreshCw size={13} className={regenerating ? "animate-spin" : ""} />
-                        Regenerate
-                      </button>
-                    </div>
-                  </div>
-                  <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginBottom: 12 }}>
-                    {carousel.hashtags.map(tag => (
-                      <span key={tag} style={{ display: "flex", alignItems: "center", gap: 4, background: "#EEF2FF", color: "#2B5EA7", fontSize: 12, fontWeight: 500, padding: "4px 10px", borderRadius: 99 }}>
-                        {tag}
-                        <button onClick={() => removeHashtag(tag)} style={{ background: "none", border: "none", cursor: "pointer", padding: 0, display: "flex", alignItems: "center", color: "#93A5D4" }}>
-                          <X size={11} />
-                        </button>
-                      </span>
-                    ))}
-                  </div>
-                  <div style={{ display: "flex", gap: 8 }}>
-                    <input
-                      value={newHashtag}
-                      onChange={e => setNewHashtag(e.target.value)}
-                      onKeyDown={e => e.key === "Enter" && addHashtag()}
-                      placeholder="#newhashtag"
-                      style={{ flex: 1, fontSize: 12, border: "1px solid #e8e8e8", borderRadius: 8, padding: "6px 10px", outline: "none" }}
-                    />
-                    <button onClick={addHashtag} style={{ fontSize: 12, padding: "6px 14px", background: "#E8712A", color: "#fff", border: "none", borderRadius: 8, cursor: "pointer" }}>Add</button>
-                  </div>
                 </div>
 
                 {/* Download buttons */}
